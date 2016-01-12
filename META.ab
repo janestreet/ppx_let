@@ -1,0 +1,8 @@
+version = "$(pkg_version)"
+description = "Monadic let-bindings"
+requires = "ppx_core ppx_driver"
+archive(ppx_driver, byte          ) = "ppx_let.cma"
+archive(ppx_driver, native        ) = "ppx_let.cmxa"
+archive(ppx_driver, native, plugin) = "ppx_let.cmxs"
+exists_if = "ppx_let.cma"
+ppx(-ppx_driver) = "./ppx"
