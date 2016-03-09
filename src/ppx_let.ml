@@ -67,7 +67,8 @@ let bind_apply ~loc extension_name ~arg ~fn =
     [("", arg); (fn_label, fn)]
 ;;
 
-let maybe_open extension_name ~loc ~to_open:module_to_open expr =
+let maybe_open extension_name ~to_open:module_to_open expr =
+  let loc = expr.pexp_loc in
   match (extension_name : Extension_name.t) with
   | Bind      | Map      -> expr
   | Bind_open | Map_open -> pexp_open ~loc Override (module_to_open ~loc) expr
@@ -90,18 +91,18 @@ let expand_let extension_name ~loc bindings body =
   in
   bind_apply ~loc extension_name ~arg:nested_boths
     ~fn:(pexp_fun ~loc "" None nested_patterns
-           (maybe_open extension_name ~loc ~to_open:open_in_body body))
+           (maybe_open extension_name ~to_open:open_in_body body))
 ;;
 
 let expand_match extension_name ~loc expr cases =
   let cases =
     List.map cases ~f:(fun case ->
       { case with
-        pc_rhs = maybe_open extension_name ~loc ~to_open:open_in_body case.pc_rhs;
+        pc_rhs = maybe_open extension_name ~to_open:open_in_body case.pc_rhs;
       })
   in
   bind_apply ~loc extension_name
-    ~arg:(maybe_open extension_name ~loc ~to_open:open_on_rhs expr)
+    ~arg:(maybe_open extension_name ~to_open:open_on_rhs expr)
     ~fn:(pexp_function ~loc cases)
 ;;
 
@@ -113,7 +114,7 @@ let expand ~loc:_ ~path:_ extension_name expr =
       let bindings =
         List.map bindings ~f:(fun vb ->
           { vb with
-            pvb_expr = maybe_open extension_name ~loc ~to_open:open_on_rhs vb.pvb_expr;
+            pvb_expr = maybe_open extension_name ~to_open:open_on_rhs vb.pvb_expr;
           })
       in
       expand_with_tmp_vars ~loc bindings expr ~f:(expand_let extension_name)

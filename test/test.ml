@@ -127,22 +127,26 @@ module Async_command_override_example = struct
     type 'a t
     val return : 'a -> 'a t
     module Let_syntax : sig
-      type 'a t
-      val return : 'a -> 'a t
-      val map    : 'a t -> f:('a -> 'b) -> 'b t
-      val both   : 'a t -> 'b t -> ('a * 'b) t
-      module Open_on_rhs  : sig val return : 'a -> 'a t end
-      module Open_in_body : sig val return : 'a -> 'a t end
-    end with type 'a t := 'a t
+      module Let_syntax : sig
+        type 'a t
+        val return : 'a -> 'a t
+        val map    : 'a t -> f:('a -> 'b) -> 'b t
+        val both   : 'a t -> 'b t -> ('a * 'b) t
+        module Open_on_rhs  : sig val return : 'a -> 'a t end
+        module Open_in_body : sig val return : 'a -> 'a t end
+      end with type 'a t := 'a t
+    end
   end = struct
     type 'a t = 'a
     let return x = x
     module Let_syntax = struct
-      let return = return
-      let map x ~f = f x
-      let both x y = (x, y)
-      module Open_on_rhs  = struct let return = return end
-      module Open_in_body = struct let return = return end
+      module Let_syntax = struct
+        let return = return
+        let map x ~f = f x
+        let both x y = (x, y)
+        module Open_on_rhs  = struct let return = return end
+        module Open_in_body = struct let return = return end
+      end
     end
   end
 
@@ -154,13 +158,15 @@ module Async_command_override_example = struct
       val anon : 'a -> int t
     end
     module Let_syntax : sig
-      type 'a t
-      val return : 'a -> 'a t
-      val map    : 'a t -> f:('a -> 'b) -> 'b t
-      val both   : 'a t -> 'b t -> ('a * 'b) t
-      module Open_on_rhs = Param
-      module Open_in_body : sig end
-    end with type 'a t := 'a Param.t
+      module Let_syntax : sig
+        type 'a t
+        val return : 'a -> 'a t
+        val map    : 'a t -> f:('a -> 'b) -> 'b t
+        val both   : 'a t -> 'b t -> ('a * 'b) t
+        module Open_on_rhs = Param
+        module Open_in_body : sig end
+      end with type 'a t := 'a Param.t
+    end
   end = struct
     module Param = struct
       type 'a t = 'a
@@ -171,9 +177,11 @@ module Async_command_override_example = struct
       let anon _ = 77
     end
     module Let_syntax = struct
-      include Param
-      module Open_on_rhs = Param
-      module Open_in_body = struct end
+      module Let_syntax = struct
+        include Param
+        module Open_on_rhs = Param
+        module Open_in_body = struct end
+      end
     end
   end
 
@@ -183,19 +191,20 @@ module Async_command_override_example = struct
       let special_flag = flag 88
     end
     module Let_syntax = struct
-      include (Command.Let_syntax : module type of Command.Let_syntax
-               with module Open_on_rhs  := Command.Let_syntax.Open_on_rhs
-                and module Open_in_body := Command.Let_syntax.Open_in_body)
+      open Command.Let_syntax
+      module Let_syntax = struct
+        include (Let_syntax : module type of Let_syntax
+                 with module Open_on_rhs  := Let_syntax.Open_on_rhs
+                  and module Open_in_body := Let_syntax.Open_in_body)
 
-      module Open_on_rhs = Param
-      module Open_in_body = struct
-        module Let_syntax = Deferred.Let_syntax
+        module Open_on_rhs = Param
+        module Open_in_body = Deferred.Let_syntax
       end
     end
   end
 
   let _1 : int Command.Param.t =
-    let module Let_syntax = Command.Let_syntax in
+    let open Command.Let_syntax in
     [%map_open
       let x = flag "foo"
       and y = anon "bar"
@@ -205,7 +214,7 @@ module Async_command_override_example = struct
   ;;
 
   let _1 : (unit -> int Deferred.t) Command_override.Param.t =
-    let module Let_syntax = Command_override.Let_syntax in
+    let open Command_override.Let_syntax in
     [%map_open
       let x = flag "foo"
       and y = anon "bar"
@@ -218,7 +227,7 @@ module Async_command_override_example = struct
   ;;
 
   let _1 : (unit -> unit Deferred.t) Command.Param.t =
-    let module Let_syntax = Command_override.Let_syntax in
+    let open Command_override.Let_syntax in
     [%map_open
       let () = return () in
       fun () ->
