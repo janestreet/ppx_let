@@ -64,7 +64,7 @@ let bind_apply ~loc extension_name ~arg ~fn =
   in
   pexp_apply ~loc
     (eoperator ~loc (Extension_name.operator_name extension_name))
-    [("", arg); (fn_label, fn)]
+    [(Nolabel, arg); (Labelled fn_label, fn)]
 ;;
 
 let maybe_open extension_name ~to_open:module_to_open expr =
@@ -90,7 +90,7 @@ let expand_let extension_name ~loc bindings body =
       ppat_tuple ~loc [p; acc])
   in
   bind_apply ~loc extension_name ~arg:nested_boths
-    ~fn:(pexp_fun ~loc "" None nested_patterns
+    ~fn:(pexp_fun ~loc Nolabel None nested_patterns
            (maybe_open extension_name ~to_open:open_in_body body))
 ;;
 
