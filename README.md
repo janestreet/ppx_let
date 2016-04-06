@@ -31,7 +31,7 @@ getting the right names into scope).
 
 ### Parallel bindings
 
-ppx\_monad understands parallel bindings as well. i.e.:
+ppx\_let understands parallel bindings as well. i.e.:
 
 ```ocaml
 let%bind VAR1 = EXPR1 and VAR2 = EXPR2 and VAR3 = EXPR3 in BODY
@@ -48,7 +48,7 @@ val both : 'a t -> 'b t -> ('a * 'b) t
 ### Match statements
 
 We found that this form was quite useful for match statements as
-well. So for convenience ppx\_monad also accept `%bind` and `%map` on
+well. So for convenience ppx\_let also accept `%bind` and `%map` on
 the `match` keyword. Morally `match%bind expr with cases` is seen as
 `let%bind x = expr in match x with cases`.
 
@@ -104,7 +104,7 @@ map
   (fun (P1, (P2, (P3, P4))) -> E)
 ```
 
-respectively. (Instead of `x1`, `x2`, ... ppx\_monad uses
+respectively. (Instead of `x1`, `x2`, ... ppx\_let uses
 variable names that are unlikely to clash with other names)
 
 As with `let`, names introduced by left-hand sides of the let bindings
