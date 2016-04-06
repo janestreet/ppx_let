@@ -48,7 +48,7 @@ val both : 'a t -> 'b t -> ('a * 'b) t
 ### Match statements
 
 We found that this form was quite useful for match statements as
-well. So for convenience ppx\_monad also accept `%bind` and `%map` on
+well. So for convenience ppx\_monad also accepts `%bind` and `%map` on
 the `match` keyword. Morally `match%bind expr with cases` is seen as
 `let%bind x = expr in match x with cases`.
 
