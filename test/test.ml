@@ -4,11 +4,13 @@ module Monad_example = struct
     type 'a t
     module Let_syntax : sig
       val return : 'a -> 'a t
-      val bind   : 'a t -> ('a -> 'b t) -> 'b t
-      val map    : 'a t -> f:('a -> 'b) -> 'b t
-      val both   : 'a t -> 'b t -> ('a * 'b) t
-      module Open_on_rhs  : sig val return : 'a -> 'a t end
-      module Open_in_body : sig val return : 'a -> 'a t end
+      module Let_syntax : sig
+        val return : 'a -> 'a t
+        val bind   : 'a t -> ('a -> 'b t) -> 'b t
+        val map    : 'a t -> f:('a -> 'b) -> 'b t
+        val both   : 'a t -> 'b t -> ('a * 'b) t
+        module Open_on_rhs  : sig val return : 'a -> 'a t end
+      end
     end
   end = struct
     type 'a t = 'a
@@ -18,15 +20,17 @@ module Monad_example = struct
     let both x y = (x, y)
     module Let_syntax = struct
       let return = return
-      let bind   = bind
-      let map    = map
-      let both   = both
-      module Open_on_rhs  = struct let return = return end
-      module Open_in_body = struct let return = return end
+      module Let_syntax = struct
+        let return = return
+        let bind   = bind
+        let map    = map
+        let both   = both
+        module Open_on_rhs  = struct let return = return end
+      end
     end
   end
 
-  module Let_syntax = X.Let_syntax
+  open X.Let_syntax
 
   let _mf a : _ X.t =
     let%bind_open x = a in
@@ -61,13 +65,15 @@ module Applicative_example = struct
     type 'a t
     module Let_syntax : sig
       val return : 'a -> 'a t
-      val map    : 'a t -> f:('a -> 'b) -> 'b t
-      val both   : 'a t -> 'b t -> ('a * 'b) t
-      module Open_on_rhs : sig
-        val flag : int t
-        val anon : int t
+      module Let_syntax : sig
+        val return : 'a -> 'a t
+        val map    : 'a t -> f:('a -> 'b) -> 'b t
+        val both   : 'a t -> 'b t -> ('a * 'b) t
+        module Open_on_rhs : sig
+          val flag : int t
+          val anon : int t
+        end
       end
-      module Open_in_body : sig end
     end
   end = struct
     type 'a t = 'a
@@ -76,17 +82,19 @@ module Applicative_example = struct
     let both x y = (x, y)
     module Let_syntax = struct
       let return = return
-      let map    = map
-      let both   = both
-      module Open_on_rhs = struct
-        let flag = 66
-        let anon = 77
+      module Let_syntax = struct
+        let return = return
+        let map    = map
+        let both   = both
+        module Open_on_rhs = struct
+          let flag = 66
+          let anon = 77
+        end
       end
-      module Open_in_body = struct end
     end
   end
 
-  module Let_syntax = X.Let_syntax
+  open X.Let_syntax
 
   (* {[
        let _af a : _ X.t =
@@ -119,120 +127,4 @@ module Applicative_example = struct
     match%map a with
     | 0 -> true
     | _ -> false
-end
-
-module Async_command_override_example = struct
-
-  module Deferred : sig
-    type 'a t
-    val return : 'a -> 'a t
-    module Let_syntax : sig
-      module Let_syntax : sig
-        type 'a t
-        val return : 'a -> 'a t
-        val map    : 'a t -> f:('a -> 'b) -> 'b t
-        val both   : 'a t -> 'b t -> ('a * 'b) t
-        module Open_on_rhs  : sig val return : 'a -> 'a t end
-        module Open_in_body : sig val return : 'a -> 'a t end
-      end with type 'a t := 'a t
-    end
-  end = struct
-    type 'a t = 'a
-    let return x = x
-    module Let_syntax = struct
-      module Let_syntax = struct
-        let return = return
-        let map x ~f = f x
-        let both x y = (x, y)
-        module Open_on_rhs  = struct let return = return end
-        module Open_in_body = struct let return = return end
-      end
-    end
-  end
-
-  module Command : sig
-    module Param : sig
-      type 'a t
-      val return : 'a -> 'a t
-      val flag : 'a -> int t
-      val anon : 'a -> int t
-    end
-    module Let_syntax : sig
-      module Let_syntax : sig
-        type 'a t
-        val return : 'a -> 'a t
-        val map    : 'a t -> f:('a -> 'b) -> 'b t
-        val both   : 'a t -> 'b t -> ('a * 'b) t
-        module Open_on_rhs = Param
-        module Open_in_body : sig end
-      end with type 'a t := 'a Param.t
-    end
-  end = struct
-    module Param = struct
-      type 'a t = 'a
-      let return x = x
-      let map x ~f = f x
-      let both x y = (x, y)
-      let flag _ = 66
-      let anon _ = 77
-    end
-    module Let_syntax = struct
-      module Let_syntax = struct
-        include Param
-        module Open_on_rhs = Param
-        module Open_in_body = struct end
-      end
-    end
-  end
-
-  module Command_override = struct
-    module Param = struct
-      include Command.Param
-      let special_flag = flag 88
-    end
-    module Let_syntax = struct
-      open Command.Let_syntax
-      module Let_syntax = struct
-        include (Let_syntax : module type of Let_syntax
-                 with module Open_on_rhs  := Let_syntax.Open_on_rhs
-                  and module Open_in_body := Let_syntax.Open_in_body)
-
-        module Open_on_rhs = Param
-        module Open_in_body = Deferred.Let_syntax
-      end
-    end
-  end
-
-  let _1 : int Command.Param.t =
-    let open Command.Let_syntax in
-    [%map_open
-      let x = flag "foo"
-      and y = anon "bar"
-      in
-      x + y
-    ]
-  ;;
-
-  let _1 : (unit -> int Deferred.t) Command_override.Param.t =
-    let open Command_override.Let_syntax in
-    [%map_open
-      let x = flag "foo"
-      and y = anon "bar"
-      and z = special_flag
-      in
-      (fun () ->
-         let%map () = Deferred.return () in
-         x + y + z)
-    ]
-  ;;
-
-  let _1 : (unit -> unit Deferred.t) Command.Param.t =
-    let open Command_override.Let_syntax in
-    [%map_open
-      let () = return () in
-      fun () ->
-        let%map () = Deferred.return () in
-        ()
-    ]
-  ;;
 end

@@ -8,7 +8,6 @@ module Let_syntax = struct
     let return x = T x
     let f x ~(doc:string) = T (x, doc)
   end
-  module Open_in_body = struct end
 end
 
 let _ = [%map_open let x = return 42 and y = f 42 in ()]

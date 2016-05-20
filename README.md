@@ -132,25 +132,18 @@ module Let_syntax : sig
   val map    : 'a t -> f:('a -> 'b) -> 'b t
   val both   : 'a t -> 'b t -> ('a * 'b) t
   module Open_on_rhs : << some signature >>
-  module Open_in_body : << some signature >>
 end
 ```
 
-The `Open_on_rhs` and `Open_in_body` submodules are used by variants
-of `%map` and `%bind` called `%map_open` and `%bind_open`.
+The `Open_on_rhs` submodule is used by variants of `%map` and `%bind`
+called `%map_open` and `%bind_open`.  It is locally opened on the
+right hand sides of the rewritten let bindings in `%map_open` and
+`%bind_open` expressions.  For `match%map_open` and `match%bind_open`
+expressions, `Open_on_rhs` is opened for the expression being matched
+on.
 
-The `Open_on_rhs` submodule is locally opened on the right hand sides
-of the rewritten let bindings in `%map_open` and `%bind_open`
-expressions.  This is useful when programming with applicatives, which
+`Open_on_rhs` is useful when programming with applicatives, which
 operate in a staged manner where the operators used to construct the
 applicatives are distinct from the operators used to manipulate the
 values those applicatives produce.  For monads, `Open_on_rhs` contains
 `return`.
-
-The `Open_in_body` submodule is locally opened in the body of either a
-`let%map_open` or `let%bind_open`.  It is often empty for
-applicatives.  For monads in `Core`, it contains `return`.
-
-For `match%map_open` and `match%bind_open` expressions, `Open_on_rhs`
-is opened for the expression being matched on, and `Open_in_body` is
-opened in the body of each pattern match clause.

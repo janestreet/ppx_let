@@ -33,7 +33,6 @@ end
 let let_syntax = "Let_syntax"
 
 let open_on_rhs  ~loc = Located.mk ~loc (Longident.Ldot (Lident let_syntax, "Open_on_rhs" ))
-let open_in_body ~loc = Located.mk ~loc (Longident.Ldot (Lident let_syntax, "Open_in_body"))
 
 let eoperator ~loc func =
   let lid : Longident.t = Ldot (Longident.Lident let_syntax, func) in
@@ -90,17 +89,10 @@ let expand_let extension_name ~loc bindings body =
       ppat_tuple ~loc [p; acc])
   in
   bind_apply ~loc extension_name ~arg:nested_boths
-    ~fn:(pexp_fun ~loc "" None nested_patterns
-           (maybe_open extension_name ~to_open:open_in_body body))
+    ~fn:(pexp_fun ~loc "" None nested_patterns body)
 ;;
 
 let expand_match extension_name ~loc expr cases =
-  let cases =
-    List.map cases ~f:(fun case ->
-      { case with
-        pc_rhs = maybe_open extension_name ~to_open:open_in_body case.pc_rhs;
-      })
-  in
   bind_apply ~loc extension_name
     ~arg:(maybe_open extension_name ~to_open:open_on_rhs expr)
     ~fn:(pexp_function ~loc cases)
@@ -132,7 +124,7 @@ let expand ~loc:_ ~path:_ extension_name expr =
 ;;
 
 let ext extension_name =
-  Extension.V2.declare
+  Extension.declare
     (Extension_name.to_string extension_name)
     Extension.Context.expression
     Ast_pattern.(single_expr_payload __)

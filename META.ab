@@ -1,6 +1,6 @@
 version = "$(pkg_version)"
 description = "Monadic let-bindings"
-requires = "ppx_core ppx_driver"
+requires = "compiler-libs.common ppx_core ppx_driver"
 archive(ppx_driver, byte  ) = "ppx_let.cma"
 archive(ppx_driver, native) = "ppx_let.cmxa"
 plugin(ppx_driver, byte  ) = "ppx_let.cma"
