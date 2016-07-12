@@ -13,6 +13,6 @@ end
 let _ = [%map_open let x = return 42 and y = f 42 in ()]
 [%%expect{|
 Line _, characters 45-49:
-Error: This expression has type doc:bytes -> (int * bytes) Let_syntax.t
+Error: This expression has type doc:string -> (int * string) Let_syntax.t
        but an expression was expected of type 'a Let_syntax.t
 |}]
