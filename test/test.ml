@@ -6,7 +6,7 @@ module Monad_example = struct
       val return : 'a -> 'a t
       module Let_syntax : sig
         val return : 'a -> 'a t
-        val bind   : 'a t -> ('a -> 'b t) -> 'b t
+        val bind   : 'a t -> f:('a -> 'b t) -> 'b t
         val map    : 'a t -> f:('a -> 'b) -> 'b t
         val both   : 'a t -> 'b t -> ('a * 'b) t
         module Open_on_rhs  : sig val return : 'a -> 'a t end
@@ -15,7 +15,7 @@ module Monad_example = struct
   end = struct
     type 'a t = 'a
     let return x = x
-    let bind x f = f x
+    let bind x ~f = f x
     let map x ~f = f x
     let both x y = (x, y)
     module Let_syntax = struct
