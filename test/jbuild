@@ -1,0 +1,6 @@
+(executables
+ ((names (test))
+  (preprocess (((pps (ppx_let)) All)))))
+
+(toplevel_expect_tests
+ ((libraries (ppx_let))))
