@@ -93,6 +93,12 @@ let expand_match extension_name ~loc expr cases =
     ~fn:(pexp_function ~loc cases)
 ;;
 
+let expand_if extension_name ~loc expr then_ else_ =
+  expand_match extension_name ~loc expr
+    [ case ~lhs:(pbool ~loc true)  ~guard:None ~rhs:then_
+    ; case ~lhs:(pbool ~loc false) ~guard:None ~rhs:else_
+    ]
+
 let expand ~loc:_ ~path:_ extension_name expr =
   let loc = expr.pexp_loc in
   let expansion =
@@ -110,9 +116,18 @@ let expand ~loc:_ ~path:_ extension_name expr =
         (Extension_name.to_string extension_name)
     | Pexp_match (expr, cases) ->
       expand_match extension_name ~loc expr cases
+    | Pexp_ifthenelse (expr, then_, else_) ->
+      let else_ =
+        match else_ with
+        | Some else_ -> else_
+        | None ->
+          Location.raise_errorf ~loc "'if%%%s' must include an else branch"
+            (Extension_name.to_string extension_name)
+      in
+      expand_if extension_name ~loc expr then_ else_
     | _ ->
       Location.raise_errorf ~loc
-        "'%%%s' can only be used with 'let' and 'match'"
+        "'%%%s' can only be used with 'let', 'match', and 'if'"
         (Extension_name.to_string extension_name)
   in
   { expansion with pexp_attributes = expr.pexp_attributes @ expansion.pexp_attributes }

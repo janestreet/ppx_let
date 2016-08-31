@@ -57,6 +57,16 @@ module Monad_example = struct
     match%map a with
     | 0 -> true
     | _ -> false
+
+  let _mif a : _ X.t =
+    if%bind_open a
+    then return true
+    else return false
+
+  let _mif' a : _ X.t =
+    if%map a
+    then true
+    else false
 end
 
 module Applicative_example = struct
