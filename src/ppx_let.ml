@@ -57,14 +57,14 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
 ;;
 
 let bind_apply ~loc extension_name ~arg ~fn =
-  let fn_label =
+  let fn_label Asttypes.arg_label =
     match (extension_name : Extension_name.t) with
-    | Bind | Bind_open -> ""
-    | Map  | Map_open  -> "f"
+    | Bind | Bind_open -> Nolabel
+    | Map  | Map_open  -> Labelled "f"
   in
   pexp_apply ~loc
     (eoperator ~loc (Extension_name.operator_name extension_name))
-    [(Nolabel, arg); (Labelled fn_label, fn)]
+    [ (Nolabel, arg); (fn_label, fn)]
 ;;
 
 let maybe_open extension_name ~to_open:module_to_open expr =
