@@ -57,7 +57,7 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
 ;;
 
 let bind_apply ~loc extension_name ~arg ~fn =
-  let fn_label Asttypes.arg_label =
+  let fn_label : Asttypes.arg_label =
     match (extension_name : Extension_name.t) with
     | Bind | Bind_open -> Nolabel
     | Map  | Map_open  -> Labelled "f"
