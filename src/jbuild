@@ -2,5 +2,5 @@
  ((name ppx_let)
   (public_name ppx_let)
   (kind ppx_rewriter)
-  (libraries (compiler-libs.common ppx_core ppx_driver))
+  (libraries (ppx_core ppx_driver))
   (preprocess no_preprocessing)))

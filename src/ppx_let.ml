@@ -1,6 +1,4 @@
-open! StdLabels
-open Ppx_core.Std
-open Parsetree
+open Ppx_core
 open Ast_builder.Default
 
 module List = struct
@@ -45,11 +43,11 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
   | _ ->
     let tmp_vars = List.map bindings ~f:(fun _ -> gen_symbol ~prefix:"__let_syntax" ()) in
     let s_rhs_tmp_var (* s/rhs/tmp_var *) =
-      List.map2 bindings tmp_vars ~f:(fun vb var ->
+      List.map2_exn bindings tmp_vars ~f:(fun vb var ->
         { vb with pvb_expr = evar ~loc:vb.pvb_expr.pexp_loc var })
     in
     let s_lhs_tmp_var (* s/lhs/tmp_var *) =
-      List.map2 bindings tmp_vars  ~f:(fun vb var ->
+      List.map2_exn bindings tmp_vars  ~f:(fun vb var ->
         { vb with pvb_pat = pvar ~loc:vb.pvb_pat.ppat_loc var })
     in
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
