@@ -132,7 +132,7 @@ directly, but rather qualified by `Let_syntax`. For example, we use
 `Let_syntax.bind` rather than merely `bind`. This means one just needs to get a
 properly loaded `Let_syntax` module in scope to use `%bind` and `%map`.
 
-For monads, `Core.Std.Monad.Make` produces a submodule `Let_syntax` of the
+For monads, `Core.Monad.Make` produces a submodule `Let_syntax` of the
 appropriate form.
 
 For applicatives. The convention for these modules is to have a submodule
