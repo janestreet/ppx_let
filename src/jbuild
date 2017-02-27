@@ -4,3 +4,5 @@
   (kind ppx_rewriter)
   (libraries (ppx_core ppx_driver))
   (preprocess no_preprocessing)))
+
+(jbuild_version jane_street)
