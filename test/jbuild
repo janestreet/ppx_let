@@ -2,7 +2,5 @@
  ((names (test))
   (preprocess (pps (ppx_let)))))
 
-(toplevel_expect_tests
- ((libraries (ppx_let))))
 
 (jbuild_version jane_street)
