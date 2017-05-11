@@ -1,7 +1,5 @@
----
-title: ppx_let
-parent: ../README.md
----
+ppx_let
+=======
 
 A ppx rewriter for monadic and applicative let bindings, match expressions, and
 if expressions.
