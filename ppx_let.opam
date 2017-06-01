@@ -6,7 +6,7 @@ bug-reports: "https://github.com/janestreet/ppx_let/issues"
 dev-repo: "git+https://github.com/janestreet/ppx_let.git"
 license: "Apache-2.0"
 build: [
-  ["jbuilder" "build" "--only-packages" "ppx_let" "--root" "." "-j" jobs "@install"]
+  ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 depends: [
   "jbuilder"                {build & >= "1.0+beta8"}
