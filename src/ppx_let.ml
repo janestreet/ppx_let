@@ -1,4 +1,5 @@
-open Ppx_core
+open Base
+open Ppxlib
 open Ast_builder.Default
 
 module List = struct
@@ -140,7 +141,7 @@ let ext extension_name =
 ;;
 
 let () =
-  Ppx_driver.register_transformation "let"
+  Driver.register_transformation "let"
     ~extensions:[
       ext Bind;
       ext Bind_open;

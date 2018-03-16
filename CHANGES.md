@@ -1,3 +1,7 @@
+## v0.11
+
+- Depend on ppxlib instead of (now deprecated) ppx\_core and  ppx\_driver.
+
 ## 113.43.00
 
 - Dropped `Open_in_body` support from ppx\_let, since it was only ever used
