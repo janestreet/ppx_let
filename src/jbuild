@@ -2,7 +2,6 @@
   (name        ppx_let)
   (public_name ppx_let)
   (kind      ppx_rewriter)
-  (flags                (:standard -safe-string))
   (libraries            (base ppxlib))
   (preprocess no_preprocessing)))
 
