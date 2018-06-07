@@ -1,3 +1,8 @@
+## git version
+
+- Support for `%map.A.B.C` syntax to use values from a specific module, rather
+  than the one in scope.
+
 ## v0.11
 
 - Depend on ppxlib instead of (now deprecated) ppx\_core and  ppx\_driver.

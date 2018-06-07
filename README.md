@@ -131,15 +131,22 @@ Getting the right names in scope
 
 The description of how the `%bind` and `%map` syntax extensions expand left out
 the fact that the names `bind`, `map`, `both`, and `return` are not used
-directly, but rather qualified by `Let_syntax`. For example, we use
-`Let_syntax.bind` rather than merely `bind`. This means one just needs to get a
-properly loaded `Let_syntax` module in scope to use `%bind` and `%map`.
+directly., but rather qualified by `Let_syntax`. For example, we use
+`Let_syntax.bind` rather than merely `bind`. 
+
+This means one just needs to get a properly loaded `Let_syntax` module
+in scope to use `%bind` and `%map`.
+
+Alternatively, the extension can use values from a `Let_syntax` module
+other than the one in scope. If you write `%map.A.B.C` instead of
+`%map`, the expansion will use `A.B.C.Let_syntax.map` instead of
+`Let_syntax.map` (and similarly for all extension points).
 
 For monads, `Core.Monad.Make` produces a submodule `Let_syntax` of the
 appropriate form.
 
-For applicatives. The convention for these modules is to have a submodule
-`Let_syntax` of the form
+For applicatives, the convention for these modules is to have a submodule
+`Let_syntax` of the form:
 
 ```ocaml
 module Let_syntax : sig
