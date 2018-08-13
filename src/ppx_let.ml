@@ -109,7 +109,19 @@ let expand ~loc:_ ~path:_ ~arg:modul extension_name expr =
     | Pexp_let (Nonrecursive, bindings, expr) ->
       let bindings =
         List.map bindings ~f:(fun vb ->
+          let pvb_pat =
+            (* Temporary hack tentatively detecting that the parser
+               has expanded `let x : t = e` into `let x : t = (e : t)`.
+
+               For reference, here is the relevant part of the parser:
+               https://github.com/ocaml/ocaml/blob/4.07/parsing/parser.mly#L1628 *)
+            match vb.pvb_pat.ppat_desc, vb.pvb_expr.pexp_desc with
+            | Ppat_constraint (p, { ptyp_desc = Ptyp_poly ([], t1); _ }),
+              Pexp_constraint (_, t2) when phys_equal t1 t2 -> p
+            | _ -> vb.pvb_pat
+          in
           { vb with
+            pvb_pat;
             pvb_expr = maybe_open extension_name ~to_open:(open_on_rhs ~modul) vb.pvb_expr;
           })
       in

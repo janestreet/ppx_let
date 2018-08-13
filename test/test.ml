@@ -41,7 +41,7 @@ module Monad_example = struct
     return (x + y + (u * v))
 
   let _mg a : _ X.t =
-    let%map x = a in
+    let%map x : int X.t = a in
     x + 1
 
   let _mg' a b c : _ X.t =
