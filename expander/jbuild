@@ -1,0 +1,7 @@
+(library (
+  (name        ppx_let_expander)
+  (public_name ppx_let.expander)
+  (libraries  (base ppxlib))
+  (preprocess no_preprocessing)))
+
+(jbuild_version 1)
