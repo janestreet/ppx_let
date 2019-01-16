@@ -1,6 +1,0 @@
-(executables (
-  (names (test))
-  (preprocess (pps (ppx_let ppxlib.runner)))))
-
-
-(jbuild_version 1)

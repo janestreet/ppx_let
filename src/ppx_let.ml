@@ -10,11 +10,7 @@ let ext extension_name =
 ;;
 
 let () =
-  Driver.register_transformation "let"
-    ~extensions:[
-      ext Bind;
-      ext Bind_open;
-      ext Map;
-      ext Map_open;
-    ]
+  Driver.register_transformation
+    "let"
+    ~extensions:[ ext Bind; ext Bind_open; ext Map; ext Map_open ]
 ;;
