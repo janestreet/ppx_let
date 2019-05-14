@@ -139,7 +139,7 @@ let expand ~modul extension_name expr =
             match vb.pvb_pat.ppat_desc, vb.pvb_expr.pexp_desc with
             | ( Ppat_constraint (p, { ptyp_desc = Ptyp_poly ([], t1); _ })
               , Pexp_constraint (_, t2) )
-              when phys_equal t1 t2 -> p
+              when phys_equal t1 t2 || Poly.equal t1 t2 -> p
             | _ -> vb.pvb_pat
           in
           { vb with
