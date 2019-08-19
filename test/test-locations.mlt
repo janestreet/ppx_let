@@ -12,7 +12,7 @@ module Let_syntax = struct
   end
 end
 
-let _ =
+let (_ : _) =
   [%map_open
     let x = return 42
     and y = f 42 in

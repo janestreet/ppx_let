@@ -39,7 +39,7 @@ let let_syntax ~modul : Longident.t =
 ;;
 
 let open_on_rhs ~loc ~modul =
-  Located.mk ~loc (Longident.Ldot (let_syntax ~modul, "Open_on_rhs"))
+  pmod_ident ~loc (Located.mk ~loc (Longident.Ldot (let_syntax ~modul, "Open_on_rhs")))
 ;;
 
 let eoperator ~loc ~modul func =
@@ -76,7 +76,8 @@ let maybe_open extension_name ~to_open:module_to_open expr =
   let loc = expr.pexp_loc in
   match (extension_name : Extension_name.t) with
   | Bind | Map -> expr
-  | Bind_open | Map_open -> pexp_open ~loc Override (module_to_open ~loc) expr
+  | Bind_open | Map_open ->
+    pexp_open ~loc (open_infos ~loc ~override:Override ~expr:(module_to_open ~loc)) expr
 ;;
 
 let expand_let extension_name ~loc ~modul bindings body =

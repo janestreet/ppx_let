@@ -12,7 +12,7 @@ module Let_syntax = struct
   end
 end
 
-let _ =
+let (_ : _) =
   (* This tests whether we correctly detect that `let x : t = e`
      has been rewritten into `let x : t = (e : t)` (and undo the
      change). A typing error occurs  *)
