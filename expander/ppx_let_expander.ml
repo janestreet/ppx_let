@@ -32,10 +32,12 @@ module Extension_name = struct
   ;;
 end
 
+let let_syntax = "Let_syntax"
+
 let let_syntax ~modul : Longident.t =
   match modul with
-  | None -> Lident "Let_syntax"
-  | Some id -> Ldot (id.txt, "Let_syntax")
+  | None -> Lident let_syntax
+  | Some id -> Ldot (Ldot (id.txt, let_syntax), let_syntax)
 ;;
 
 let open_on_rhs ~loc ~modul =

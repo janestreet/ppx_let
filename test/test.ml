@@ -165,7 +165,7 @@ end
 
 module Example_without_open = struct
   let _ag a : _ Applicative_example.X.t =
-    let%map.Applicative_example.X.Let_syntax x = a in
+    let%map.Applicative_example.X x = a in
     x + 1
   ;;
 end
