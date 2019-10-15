@@ -21,7 +21,7 @@ let (_ : _) =
 
 [%%expect
   {|
-Line _, characters 12-16:
+Line _, characters _-_:
 Error: This expression has type doc:string -> (int * string) Let_syntax.t
        but an expression was expected of type 'a Let_syntax.t
 |}]
