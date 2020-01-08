@@ -58,11 +58,16 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
     in
     let s_rhs_tmp_var (* s/rhs/tmp_var *) =
       List.map2_exn bindings tmp_vars ~f:(fun vb var ->
-        { vb with pvb_expr = evar ~loc:vb.pvb_expr.pexp_loc var })
+        let loc = { vb.pvb_expr.pexp_loc with loc_ghost = true } in
+        { vb with pvb_expr = evar ~loc var })
     in
     let s_lhs_tmp_var (* s/lhs/tmp_var *) =
       List.map2_exn bindings tmp_vars ~f:(fun vb var ->
-        { vb with pvb_pat = pvar ~loc:vb.pvb_pat.ppat_loc var })
+        let loc = { vb.pvb_pat.ppat_loc with loc_ghost = true } in
+        { vb with
+          pvb_pat = pvar ~loc var
+        ; pvb_loc = { vb.pvb_loc with loc_ghost = true }
+        })
     in
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
 ;;
@@ -75,7 +80,7 @@ let bind_apply ~loc ~modul extension_name ~arg ~fn =
 ;;
 
 let maybe_open extension_name ~to_open:module_to_open expr =
-  let loc = expr.pexp_loc in
+  let loc = { expr.pexp_loc with loc_ghost = true } in
   match (extension_name : Extension_name.t) with
   | Bind | Map -> expr
   | Bind_open | Map_open ->
@@ -89,14 +94,14 @@ let expand_let extension_name ~loc ~modul bindings body =
   let nested_boths =
     let rev_boths = List.rev_map bindings ~f:(fun vb -> vb.pvb_expr) in
     List.reduce_exn rev_boths ~f:(fun acc e ->
-      let loc = e.pexp_loc in
+      let loc = { e.pexp_loc with loc_ghost = true } in
       eapply ~loc (eoperator ~loc ~modul "both") [ e; acc ])
   in
   (* Build pattern [(P1, (P2, ...))] *)
   let nested_patterns =
     let rev_patts = List.rev_map bindings ~f:(fun vb -> vb.pvb_pat) in
     List.reduce_exn rev_patts ~f:(fun acc p ->
-      let loc = p.ppat_loc in
+      let loc = { p.ppat_loc with loc_ghost = true } in
       ppat_tuple ~loc [ p; acc ])
   in
   bind_apply
@@ -127,7 +132,7 @@ let expand_if extension_name ~loc expr then_ else_ =
 ;;
 
 let expand ~modul extension_name expr =
-  let loc = expr.pexp_loc in
+  let loc = { expr.pexp_loc with loc_ghost = true } in
   let expansion =
     match expr.pexp_desc with
     | Pexp_let (Nonrecursive, bindings, expr) ->
