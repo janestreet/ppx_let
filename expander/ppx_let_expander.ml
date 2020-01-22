@@ -131,6 +131,22 @@ let expand_if extension_name ~loc expr then_ else_ =
     ]
 ;;
 
+let expand_while ~loc ~modul ~cond ~body =
+  let loop_name = gen_symbol ~prefix:"__let_syntax_loop" () in
+  let ploop = pvar ~loc loop_name in
+  let eloop = evar ~loc loop_name in
+  let loop_call = pexp_apply ~loc eloop [ Nolabel, eunit ~loc ] in
+  let loop_body =
+    let then_ = bind_apply ~loc ~modul Bind ~arg:body ~fn:eloop in
+    let else_ =
+      pexp_apply ~loc (eoperator ~loc ~modul "return") [ Nolabel, eunit ~loc ]
+    in
+    expand_if ~modul Bind ~loc cond then_ else_
+  in
+  let loop_func = pexp_fun ~loc Nolabel None (punit ~loc) loop_body in
+  pexp_let ~loc Recursive [ value_binding ~loc ~pat:ploop ~expr:loop_func ] loop_call
+;;
+
 let expand ~modul extension_name expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   let expansion =
@@ -174,10 +190,17 @@ let expand ~modul extension_name expr =
             (Extension_name.to_string extension_name)
       in
       expand_if extension_name ~loc ~modul expr then_ else_
+    | Pexp_while (cond, body) ->
+      (match (extension_name : Extension_name.t) with
+       | Map | Map_open ->
+         Location.raise_errorf
+           ~loc
+           "while%%map is not supported. use while%%bind instead."
+       | Bind | Bind_open -> expand_while ~loc ~modul ~cond ~body)
     | _ ->
       Location.raise_errorf
         ~loc
-        "'%%%s' can only be used with 'let', 'match', and 'if'"
+        "'%%%s' can only be used with 'let', 'match', 'while', and 'if'"
         (Extension_name.to_string extension_name)
   in
   { expansion with pexp_attributes = expr.pexp_attributes @ expansion.pexp_attributes }

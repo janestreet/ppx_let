@@ -47,6 +47,7 @@ type `t` in question:
 val both : 'a t -> 'b t -> ('a * 'b) t
 ```
 
+
 ### Match statements
 
 We found that this form was quite useful for match statements as well. So for
@@ -60,10 +61,30 @@ As a further convenience, ppx\_let accepts `%bind` and `%map` on the `if`
 keyword. The expression `if%bind expr1 then expr2 else expr3` is morally
 equivalent to `let%bind p = expr1 in if p then expr2 else expr3`.
 
+### While statements
+
+We also expand `while%bind expr1 do expr2 done` as
+
+```ocaml
+let rec loop () =
+  if%bind expr1
+  then (
+    let%bind () = expr2 in
+    loop ())
+  else return ()
+in loop ()
+```
+
+Note that this form will (potentially) evaluate the textual form of
+expr1 multiple times!
+
+We do not support `while%map`, as that cannot be implemented without
+`bind`.
+
 Syntactic forms and actual rewriting
 ------------------------------------
 
-`ppx_let` adds six syntactic forms
+`ppx_let` adds seven syntactic forms
 
 ```ocaml
 let%bind P = M in E
@@ -77,6 +98,8 @@ match%map  M with P1 -> E1 | P2 -> E2 | ...
 if%bind M then E1 else E2
 
 if%map  M then E1 else E2
+
+while%bind M do E done
 ```
 
 that expand into
@@ -93,6 +116,8 @@ map  M ~f:(function P1 -> E1 | P2 -> E2 | ...)
 bind M ~f:(function true -> E1 | false -> E2)
 
 map  M ~f:(function true -> E1 | false -> E2)
+
+let rec loop () = bind M ~f:(function true -> bind E ~f:loop | false -> return ()) in loop ()
 ```
 
 respectively.
@@ -132,7 +157,7 @@ Getting the right names in scope
 The description of how the `%bind` and `%map` syntax extensions expand left out
 the fact that the names `bind`, `map`, `both`, and `return` are not used
 directly., but rather qualified by `Let_syntax`. For example, we use
-`Let_syntax.bind` rather than merely `bind`. 
+`Let_syntax.bind` rather than merely `bind`.
 
 This means one just needs to get a properly loaded `Let_syntax` module
 in scope to use `%bind` and `%map`.
