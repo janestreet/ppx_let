@@ -16,19 +16,27 @@ module Extension_name = struct
   type t =
     | Bind
     | Bind_open
+    | Bindn
+    | Bindn_open
     | Map
     | Map_open
+    | Mapn
+    | Mapn_open
 
   let operator_name = function
-    | Bind | Bind_open -> "bind"
-    | Map | Map_open -> "map"
+    | Bind | Bind_open | Bindn | Bindn_open -> "bind"
+    | Map | Map_open | Mapn | Mapn_open -> "map"
   ;;
 
   let to_string = function
     | Bind -> "bind"
+    | Bindn -> "bindn"
+    | Bindn_open -> "bindn_open"
     | Bind_open -> "bind_open"
     | Map -> "map"
     | Map_open -> "map_open"
+    | Mapn -> "mapn"
+    | Mapn_open -> "mapn_open"
   ;;
 end
 
@@ -72,6 +80,24 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
 ;;
 
+let expand_with_op_n_function ~loc ~modul ~op_name bindings expr =
+  let n = List.length bindings in
+  let operator =
+    match n with
+    | 1 -> eoperator ~loc ~modul op_name
+    | n -> eoperator ~loc ~modul (Printf.sprintf "%s%d" op_name n)
+  in
+  let bindings_args =
+    bindings |> List.map ~f:(fun { pvb_expr; _ } -> Nolabel, pvb_expr)
+  in
+  let func =
+    List.fold_right bindings ~init:expr ~f:(fun { pvb_pat; _ } lower ->
+      pexp_fun ~loc Nolabel None pvb_pat lower)
+  in
+  let args = List.append bindings_args [ Labelled "f", func ] in
+  pexp_apply ~loc operator args
+;;
+
 let bind_apply ~loc ~modul extension_name ~arg ~fn =
   pexp_apply
     ~loc
@@ -82,8 +108,8 @@ let bind_apply ~loc ~modul extension_name ~arg ~fn =
 let maybe_open extension_name ~to_open:module_to_open expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   match (extension_name : Extension_name.t) with
-  | Bind | Map -> expr
-  | Bind_open | Map_open ->
+  | Bind | Map | Mapn | Bindn -> expr
+  | Bind_open | Bindn_open | Map_open | Mapn_open ->
     pexp_open ~loc (open_infos ~loc ~override:Override ~expr:(module_to_open ~loc)) expr
 ;;
 
@@ -172,7 +198,18 @@ let expand ~modul extension_name expr =
               maybe_open extension_name ~to_open:(open_on_rhs ~modul) vb.pvb_expr
           })
       in
-      expand_with_tmp_vars ~loc bindings expr ~f:(expand_let extension_name ~modul)
+      (match extension_name with
+       | Mapn | Bindn | Mapn_open | Bindn_open ->
+         expand_with_tmp_vars
+           ~loc
+           bindings
+           expr
+           ~f:
+             (expand_with_op_n_function
+                ~modul
+                ~op_name:(Extension_name.operator_name extension_name))
+       | _ ->
+         expand_with_tmp_vars ~loc bindings expr ~f:(expand_let extension_name ~modul))
     | Pexp_let (Recursive, _, _) ->
       Location.raise_errorf
         ~loc
@@ -192,10 +229,14 @@ let expand ~modul extension_name expr =
       expand_if extension_name ~loc ~modul expr then_ else_
     | Pexp_while (cond, body) ->
       (match (extension_name : Extension_name.t) with
-       | Map | Map_open ->
+       | Map | Map_open | Mapn | Mapn_open ->
          Location.raise_errorf
            ~loc
            "while%%map is not supported. use while%%bind instead."
+       | Bindn | Bindn_open ->
+         Location.raise_errorf
+           ~loc
+           "while%%bindn is not supported. use while%%bind instead."
        | Bind | Bind_open -> expand_while ~loc ~modul ~cond ~body)
     | _ ->
       Location.raise_errorf
