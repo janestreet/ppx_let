@@ -14,6 +14,8 @@ end
 
 module Extension_name = struct
   type t =
+    | Subst
+    | Subst_open
     | Bind
     | Bind_open
     | Bindn
@@ -24,11 +26,14 @@ module Extension_name = struct
     | Mapn_open
 
   let operator_name = function
+    | Subst | Subst_open -> "subst"
     | Bind | Bind_open | Bindn | Bindn_open -> "bind"
     | Map | Map_open | Mapn | Mapn_open -> "map"
   ;;
 
   let to_string = function
+    | Subst -> "subst"
+    | Subst_open -> "subst_open"
     | Bind -> "bind"
     | Bindn -> "bindn"
     | Bindn_open -> "bindn_open"
@@ -108,14 +113,22 @@ let bind_apply ~loc ~modul extension_name ~arg ~fn =
 let maybe_open extension_name ~to_open:module_to_open expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   match (extension_name : Extension_name.t) with
-  | Bind | Map | Mapn | Bindn -> expr
-  | Bind_open | Bindn_open | Map_open | Mapn_open ->
+  | Subst | Bind | Map | Mapn | Bindn -> expr
+  | Subst_open | Bind_open | Bindn_open | Map_open | Mapn_open ->
     pexp_open ~loc (open_infos ~loc ~override:Override ~expr:(module_to_open ~loc)) expr
 ;;
 
+let assert_bindings_length ~loc ~extension_name ~bindings =
+  match extension_name, List.length bindings with
+  | _, 0 -> invalid_arg "expand_let: list of bindings must be non-empty"
+  | (Extension_name.Subst | Subst_open), n when n > 1 ->
+    (* let%subst doesn't allow more than one binding *)
+    Location.raise_errorf ~loc "let%%subst cannot be used with 'and'"
+  | _ -> ()
+;;
+
 let expand_let extension_name ~loc ~modul bindings body =
-  if List.is_empty bindings
-  then invalid_arg "expand_let: list of bindings must be non-empty";
+  assert_bindings_length ~loc ~extension_name ~bindings;
   (* Build expression [both E1 (both E2 (both ...))] *)
   let nested_boths =
     let rev_boths = List.rev_map bindings ~f:(fun vb -> vb.pvb_expr) in
@@ -208,14 +221,17 @@ let expand ~modul extension_name expr =
              (expand_with_op_n_function
                 ~modul
                 ~op_name:(Extension_name.operator_name extension_name))
-       | _ ->
+       | Subst | Subst_open | Bind | Bind_open | Map | Map_open ->
          expand_with_tmp_vars ~loc bindings expr ~f:(expand_let extension_name ~modul))
     | Pexp_let (Recursive, _, _) ->
       Location.raise_errorf
         ~loc
         "'let%%%s' may not be recursive"
         (Extension_name.to_string extension_name)
-    | Pexp_match (expr, cases) -> expand_match extension_name ~loc ~modul expr cases
+    | Pexp_match (expr, cases) ->
+      (match extension_name with
+       | Subst | Subst_open -> Location.raise_errorf ~loc "match%%subst is not supported"
+       | _ -> expand_match extension_name ~loc ~modul expr cases)
     | Pexp_ifthenelse (expr, then_, else_) ->
       let else_ =
         match else_ with
@@ -226,7 +242,9 @@ let expand ~modul extension_name expr =
             "'if%%%s' must include an else branch"
             (Extension_name.to_string extension_name)
       in
-      expand_if extension_name ~loc ~modul expr then_ else_
+      (match extension_name with
+       | Subst | Subst_open -> Location.raise_errorf ~loc "if%%subst is not supported"
+       | _ -> expand_if extension_name ~loc ~modul expr then_ else_)
     | Pexp_while (cond, body) ->
       (match (extension_name : Extension_name.t) with
        | Map | Map_open | Mapn | Mapn_open ->
@@ -237,6 +255,7 @@ let expand ~modul extension_name expr =
          Location.raise_errorf
            ~loc
            "while%%bindn is not supported. use while%%bind instead."
+       | Subst | Subst_open -> Location.raise_errorf ~loc "while%%subst is not supported"
        | Bind | Bind_open -> expand_while ~loc ~modul ~cond ~body)
     | _ ->
       Location.raise_errorf

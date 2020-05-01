@@ -91,6 +91,8 @@ let%bind P = M in E
 
 let%map  P = M in E
 
+let%subst P = M in E
+
 match%bind M with P1 -> E1 | P2 -> E2 | ...
 
 match%map  M with P1 -> E1 | P2 -> E2 | ...
@@ -108,6 +110,8 @@ that expand into
 bind M ~f:(fun P -> E)
 
 map  M ~f:(fun P -> E)
+
+subst M ~f:(fun P -> E)
 
 bind M ~f:(function P1 -> E1 | P2 -> E2 | ...)
 
@@ -147,6 +151,9 @@ map
 
 respectively. (Instead of `x1`, `x2`, ... ppx\_let uses variable names that are
 unlikely to clash with other names)
+
+Unlike `let%map` and `let%bind`, `let%subst` does _not_ permit
+multiple bindings via the `and` keyword.
 
 As with `let`, names introduced by left-hand sides of the let bindings are not
 available in subsequent right-hand sides of the same sequence.
@@ -192,3 +199,19 @@ the expression being matched on.
 staged manner where the operators used to construct the applicatives are
 distinct from the operators used to manipulate the values those applicatives
 produce. For monads, `Open_on_rhs` contains `return`.
+
+
+let%subst
+---------
+`let%subst` is a form equivalent to `let%bind` but calling a function called
+[subst] instead of [bind]. The intended use case is for things which have a
+"bind-like" operation with a type like:
+
+```ocaml
+val subst : 'a t -> f:('a s -> 'b t) -> 'b t
+```
+
+(e.g. a relative monad) The name comes from the quintessential example
+of such an operation: substitution of terms for variables.  We didn't
+want to just use [let%bind] for such functions as it might confuse
+people.

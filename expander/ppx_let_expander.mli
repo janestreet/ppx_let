@@ -2,6 +2,8 @@ open Ppxlib
 
 module Extension_name : sig
   type t =
+    | Subst
+    | Subst_open
     | Bind
     | Bind_open
     | Bindn
