@@ -13,7 +13,9 @@ let () =
   Driver.register_transformation
     "let"
     ~extensions:
-      [ ext Bind
+      [ ext Subst
+      ; ext Subst_open
+      ; ext Bind
       ; ext Bind_open
       ; ext Map
       ; ext Map_open
