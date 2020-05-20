@@ -47,6 +47,16 @@ type `t` in question:
 val both : 'a t -> 'b t -> ('a * 'b) t
 ```
 
+Some applicatives have optimized `map` functions for more than two arguments.
+These applicatives will export functions like `map4` shown below:
+
+```ocaml
+val map4: 'a t -> 'b t -> 'c t -> 'd t -> f:('a -> 'b -> 'c -> 'd -> 'r) -> 'r t
+```
+
+In order to use these optmized functions, ppx\_let provides the `let%mapn`
+syntax, which picks the right `map{n}` function to call based on the amount of
+applicatives bound by the syntax.
 
 ### Match statements
 
