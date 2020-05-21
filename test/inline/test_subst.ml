@@ -7,29 +7,29 @@ let print_expr expr =
   Pprintast.string_of_structure [%str let () = [%e expr]] |> print_string
 ;;
 
-let%expect_test "single let%subst " =
+let%expect_test "single let%sub " =
   Ppx_let_expander.expand
     ~modul:None
-    Subst
+    Sub
     [%expr
       let MY_PAT = MY_EXPR in
       MY_BODY]
   |> print_expr;
   [%expect {|
-    let () = Let_syntax.subst MY_EXPR ~f:(fun (MY_PAT) -> MY_BODY) |}]
+    let () = Let_syntax.sub MY_EXPR ~f:(fun (MY_PAT) -> MY_BODY) |}]
 ;;
 
-let%expect_test "single pattern subst with modul" =
+let%expect_test "single pattern sub with modul" =
   Ppx_let_expander.expand
     ~modul:(Some { txt = Longident.Lident "X"; loc = Location.none })
-    Subst
+    Sub
     [%expr
       let MY_PAT = MY_EXPR in
       MY_BODY]
   |> print_expr;
   [%expect
     {|
-    let () = X.Let_syntax.Let_syntax.subst MY_EXPR ~f:(fun (MY_PAT) -> MY_BODY) |}]
+    let () = X.Let_syntax.Let_syntax.sub MY_EXPR ~f:(fun (MY_PAT) -> MY_BODY) |}]
 ;;
 
 let assert_fails_with_syntax_error ~f =
@@ -48,19 +48,19 @@ let%expect_test "double pattern " =
   assert_fails_with_syntax_error ~f:(fun () ->
     Ppx_let_expander.expand
       ~modul:None
-      Subst
+      Sub
       [%expr
         let MY_PAT_1 = MY_EXPR_1
         and MY_PAT_2 = MY_EXPR_2 in
         MY_BODY]);
   [%expect {|
-    let%subst cannot be used with 'and' |}]
+    let%sub cannot be used with 'and' |}]
 ;;
 
-let%expect_test "single pattern subst open" =
+let%expect_test "single pattern sub open" =
   Ppx_let_expander.expand
     ~modul:None
-    Subst_open
+    Sub_open
     [%expr
       let MY_PAT_1 = MY_EXPR_1 in
       MY_BODY]
@@ -68,7 +68,7 @@ let%expect_test "single pattern subst open" =
   [%expect
     {|
     let () =
-      Let_syntax.subst (let open! Let_syntax.Open_on_rhs in MY_EXPR_1)
+      Let_syntax.sub (let open! Let_syntax.Open_on_rhs in MY_EXPR_1)
         ~f:(fun (MY_PAT_1) -> MY_BODY) |}]
 ;;
 
@@ -76,46 +76,46 @@ let%expect_test "double pattern map open" =
   assert_fails_with_syntax_error ~f:(fun () ->
     Ppx_let_expander.expand
       ~modul:None
-      Subst_open
+      Sub_open
       [%expr
         let MY_PAT_1 = MY_EXPR_1
         and MY_PAT_2 = MY_EXPR_2 in
         MY_BODY]);
   [%expect {|
-    let%subst cannot be used with 'and' |}]
+    let%sub cannot be used with 'and' |}]
 ;;
 
-let%expect_test "while%subst is banned" =
+let%expect_test "while%sub is banned" =
   assert_fails_with_syntax_error ~f:(fun () ->
     Ppx_let_expander.expand
       ~modul:None
-      Subst_open
+      Sub_open
       [%expr
         while MY_PAT_1 = MY_EXPR_1 do
           MY_BODY
         done]);
   [%expect {|
-    while%subst is not supported |}]
+    while%sub is not supported |}]
 ;;
 
-let%expect_test "if%subst is banned" =
+let%expect_test "if%sub is banned" =
   assert_fails_with_syntax_error ~f:(fun () ->
     Ppx_let_expander.expand
       ~modul:None
-      Subst_open
+      Sub_open
       [%expr if MY_EXPR_1 then BODY_1 else BODY_2]);
   [%expect {|
-    if%subst is not supported |}]
+    if%sub is not supported |}]
 ;;
 
-let%expect_test "match%subst is banned" =
+let%expect_test "match%sub is banned" =
   assert_fails_with_syntax_error ~f:(fun () ->
     Ppx_let_expander.expand
       ~modul:None
-      Subst_open
+      Sub_open
       [%expr
         match MY_EXPR_1 with
         | PAT_1 -> BODY_1]);
   [%expect {|
-    match%subst is not supported |}]
+    match%sub is not supported |}]
 ;;
