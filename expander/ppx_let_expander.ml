@@ -66,9 +66,7 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
   match bindings with
   | [ _ ] -> f ~loc bindings expr
   | _ ->
-    let tmp_vars =
-      List.map bindings ~f:(fun _ -> gen_symbol ~prefix:"__let_syntax" ())
-    in
+    let tmp_vars = List.map bindings ~f:(fun _ -> gen_symbol ~prefix:"__let_syntax" ()) in
     let s_rhs_tmp_var (* s/rhs/tmp_var *) =
       List.map2_exn bindings tmp_vars ~f:(fun vb var ->
         let loc = { vb.pvb_expr.pexp_loc with loc_ghost = true } in
@@ -248,9 +246,7 @@ let expand ~modul extension_name expr =
     | Pexp_while (cond, body) ->
       (match (extension_name : Extension_name.t) with
        | Map | Map_open | Mapn | Mapn_open ->
-         Location.raise_errorf
-           ~loc
-           "while%%map is not supported. use while%%bind instead."
+         Location.raise_errorf ~loc "while%%map is not supported. use while%%bind instead."
        | Bindn | Bindn_open ->
          Location.raise_errorf
            ~loc

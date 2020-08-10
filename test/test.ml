@@ -179,10 +179,7 @@ module Example_with_mapn = struct
 
       let map2 a b ~f = map (both a b) ~f:(fun (a, b) -> f a b)
       let map3 a b c ~f = map2 (both a b) c ~f:(fun (a, b) c -> f a b c)
-
-      let map4 a b c d ~f =
-        map2 (both a b) (both c d) ~f:(fun (a, b) (c, d) -> f a b c d)
-      ;;
+      let map4 a b c d ~f = map2 (both a b) (both c d) ~f:(fun (a, b) (c, d) -> f a b c d)
     end
   end
 
