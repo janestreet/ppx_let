@@ -88,6 +88,10 @@ let eoperator ~loc ~modul func =
   pexp_ident ~loc (Located.mk ~loc lid)
 ;;
 
+let qualified_return ~loc ~modul expr =
+  pexp_apply ~loc (eoperator ~loc ~modul "return") [ Nolabel, expr ]
+;;
+
 let bind_apply ~op_name ~loc ~modul ~arg ~fn =
   pexp_apply ~loc (eoperator ~loc ~modul op_name) [ Nolabel, arg; Labelled "f", fn ]
 ;;
@@ -209,9 +213,7 @@ let expand_while (module Ext : Ext) ~extension_kind ~loc ~modul ~cond ~body =
   let loop_call = pexp_apply ~loc eloop [ Nolabel, eunit ~loc ] in
   let loop_body =
     let then_ = bind_apply ~op_name:Ext.name ~loc ~modul ~arg:body ~fn:eloop in
-    let else_ =
-      pexp_apply ~loc (eoperator ~loc ~modul "return") [ Nolabel, eunit ~loc ]
-    in
+    let else_ = qualified_return ~loc ~modul (eunit ~loc) in
     expand_if (module Ext) ~extension_kind ~modul ~loc cond then_ else_
   in
   let loop_func = pexp_fun ~loc Nolabel None (punit ~loc) loop_body in
@@ -411,12 +413,7 @@ module Sub : Ext = struct
   ;;
 
   let sub_return ~loc ~modul ~lhs ~rhs ~body =
-    let returned_expression =
-      pexp_apply
-        ~loc
-        (pexp_ident ~loc (Located.mk ~loc (Lident "return")))
-        [ Nolabel, rhs ]
-    in
+    let returned_expression = qualified_return ~loc ~modul rhs in
     bind_apply
       ~op_name:name
       ~loc

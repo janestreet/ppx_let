@@ -59,6 +59,12 @@ val indexed_match
   -> case list
   -> expression
 
+val qualified_return
+  :  loc:location
+  -> modul:longident loc option
+  -> expression
+  -> expression
+
 val expand
   :  t
   -> Extension_kind.t

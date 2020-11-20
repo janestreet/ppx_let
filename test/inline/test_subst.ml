@@ -110,7 +110,7 @@ let%expect_test "if%sub is supported" =
   [%expect
     {|
     let () =
-      Let_syntax.sub (return MY_EXPR_1)
+      Let_syntax.sub (Let_syntax.return MY_EXPR_1)
         ~f:(fun __pattern_syntax__004_ ->
               ((Let_syntax.switch
                   ~match_:((Let_syntax.map __pattern_syntax__004_
@@ -135,7 +135,7 @@ let%expect_test "very simple match%sub" =
   [%expect
     {|
    let () =
-     Let_syntax.sub (return MY_EXPR_1)
+     Let_syntax.sub (Let_syntax.return MY_EXPR_1)
        ~f:(fun __pattern_syntax__005_ ->
              ((Let_syntax.switch
                  ~match_:((Let_syntax.map __pattern_syntax__005_
@@ -162,14 +162,14 @@ let%expect_test "destructuring let%sub" =
      Let_syntax.sub MY_EXPR
        ~f:(fun __pattern_syntax__006_ ->
              Let_syntax.sub
-               (return
+               (Let_syntax.return
                   ((Let_syntax.map __pattern_syntax__006_
                       ~f:(function
                           | (_, { b = _; c = __pattern_syntax__009_ }) ->
                               __pattern_syntax__009_))[@merlin.hide ]))
                ~f:(fun c ->
                      Let_syntax.sub
-                       (return
+                       (Let_syntax.return
                           ((Let_syntax.map __pattern_syntax__006_
                               ~f:(function
                                   | (_, { b = __pattern_syntax__008_; c = _ })
@@ -177,7 +177,7 @@ let%expect_test "destructuring let%sub" =
                           [@merlin.hide ]))
                        ~f:(fun b ->
                              Let_syntax.sub
-                               (return
+                               (Let_syntax.return
                                   ((Let_syntax.map __pattern_syntax__006_
                                       ~f:(function
                                           | (__pattern_syntax__007_,
@@ -201,7 +201,7 @@ let%expect_test "destructuring match%sub" =
   [%expect
     {|
    let () =
-     Let_syntax.sub (return MY_EXPR)
+     Let_syntax.sub (Let_syntax.return MY_EXPR)
        ~f:(fun __pattern_syntax__010_ ->
              ((Let_syntax.switch
                  ~match_:((Let_syntax.map __pattern_syntax__010_
@@ -213,7 +213,7 @@ let%expect_test "destructuring match%sub" =
                  ~with_:(function
                          | 0 ->
                              Let_syntax.sub
-                               (return
+                               (Let_syntax.return
                                   ((Let_syntax.map __pattern_syntax__010_
                                       ~f:(function
                                           | Choice_1 (_, __pattern_syntax__012_)
@@ -221,7 +221,7 @@ let%expect_test "destructuring match%sub" =
                                           | _ -> assert false))[@merlin.hide ]))
                                ~f:(fun b ->
                                      Let_syntax.sub
-                                       (return
+                                       (Let_syntax.return
                                           ((Let_syntax.map
                                               __pattern_syntax__010_
                                               ~f:(function
@@ -252,7 +252,8 @@ let%expect_test "module-qualified match%sub" =
   [%expect
     {|
    let () =
-     Module.Let_syntax.Let_syntax.sub (return MY_EXPR)
+     Module.Let_syntax.Let_syntax.sub
+       (Module.Let_syntax.Let_syntax.return MY_EXPR)
        ~f:(fun __pattern_syntax__013_ ->
              ((Module.Let_syntax.Let_syntax.switch
                  ~match_:((Module.Let_syntax.Let_syntax.map
@@ -262,7 +263,7 @@ let%expect_test "module-qualified match%sub" =
                  ~with_:(function
                          | 0 ->
                              Module.Let_syntax.Let_syntax.sub
-                               (return
+                               (Module.Let_syntax.Let_syntax.return
                                   ((Module.Let_syntax.Let_syntax.map
                                       __pattern_syntax__013_
                                       ~f:(function
