@@ -178,12 +178,25 @@ directly., but rather qualified by `Let_syntax`. For example, we use
 `Let_syntax.bind` rather than merely `bind`.
 
 This means one just needs to get a properly loaded `Let_syntax` module
-in scope to use `%bind` and `%map`.
+in scope to use `%bind` and `%map`. The intended way to do this is to
+create a module `Let_syntax` with a signature like:
+```ocaml
+module Let_syntax : sig
+  module Let_syntax : sig
+    val bind : ...
+    val map : ...
+    ...
+  end
+  ...
+end
+```
+and then use `open Let_syntax` to make the inner `Let_syntax` module
+available.
 
 Alternatively, the extension can use values from a `Let_syntax` module
 other than the one in scope. If you write `%map.A.B.C` instead of
-`%map`, the expansion will use `A.B.C.Let_syntax.map` instead of
-`Let_syntax.map` (and similarly for all extension points).
+`%map`, the expansion will use `A.B.C.Let_syntax.Let_syntax.map`
+instead of `Let_syntax.map` (and similarly for all extension points).
 
 For monads, `Core.Monad.Make` produces a submodule `Let_syntax` of the
 appropriate form.
@@ -193,10 +206,12 @@ For applicatives, the convention for these modules is to have a submodule
 
 ```ocaml
 module Let_syntax : sig
-  val return : 'a -> 'a t
-  val map    : 'a t -> f:('a -> 'b) -> 'b t
-  val both   : 'a t -> 'b t -> ('a * 'b) t
-  module Open_on_rhs : << some signature >>
+  module Let_syntax : sig
+    val return : 'a -> 'a t
+    val map    : 'a t -> f:('a -> 'b) -> 'b t
+    val both   : 'a t -> 'b t -> ('a * 'b) t
+    module Open_on_rhs : << some signature >>
+  end
 end
 ```
 
