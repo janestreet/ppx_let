@@ -192,3 +192,82 @@ module Example_with_mapn = struct
     Printf.sprintf "%d %s %f %b" a b c d
   ;;
 end
+
+module Arrow_example = struct
+  module X : sig
+    type 'a c
+    type 'a v
+
+    val return_v : 'a -> 'a v
+
+    module Let_syntax : sig
+      val return : 'a v -> 'a c
+
+      module Let_syntax : sig
+        val return : 'a v -> 'a c
+        val sub : 'a c -> f:('a v -> 'b c) -> 'b c
+        val map : 'a v -> f:('a -> 'b) -> 'b v
+        val both : 'a v -> 'b v -> ('a * 'b) v
+        val switch : match_:int v -> branches:int -> with_:(int -> 'b c) -> 'b c
+      end
+    end
+  end = struct
+    type 'a v = 'a
+    type 'a c = 'a
+
+    let return_v x = x
+    let return x = x
+    let sub x ~f = f x
+    let map x ~f = f x
+    let both a b = a, b
+    let switch ~match_ ~branches:_ ~with_ = with_ match_
+
+    module Let_syntax = struct
+      let return = return
+
+      module Let_syntax = struct
+        let return = return
+        let sub = sub
+        let map = map
+        let both = both
+        let switch = switch
+      end
+    end
+  end
+
+  open X.Let_syntax
+
+  let _arrow_example_1 a : _ X.c =
+    match%sub a with
+    | 0 -> return (X.return_v true)
+    | _ -> return (X.return_v false)
+  ;;
+
+  let _arrow_example_2 a : _ X.c =
+    match%sub a with
+    | 0 -> return (X.return_v true)
+    | b ->
+      return
+        (let%map b = b in
+         b = 1)
+  ;;
+
+  let _arrow_example_3 a : _ X.c =
+    match%sub a with
+    | 0 -> return (X.return_v true)
+    | _ as b ->
+      return
+        (let%map b = b in
+         b = 1)
+  ;;
+
+  type abc = A of int
+
+  let _arrow_example_4 a : _ X.c =
+    match%sub a with
+    | A b ->
+      return
+        (let%map b = b in
+         b = 1)
+  ;;
+end

@@ -68,7 +68,6 @@ val qualified_return
 val expand
   :  t
   -> Extension_kind.t
-  -> ?assume_exhaustive:bool
   -> modul:longident loc option
   -> expression
   -> expression

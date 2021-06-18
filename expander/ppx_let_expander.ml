@@ -123,19 +123,16 @@ let catch_all_case ~loc =
   case ~lhs:(ppat_any ~loc) ~guard:None ~rhs:(pexp_assert ~loc (ebool ~loc false))
 ;;
 
-let maybe_destruct (module Ext : Ext) ~assume_exhaustive ~loc ~modul ~lhs ~body =
+let maybe_destruct ~destruct ~loc ~modul ~lhs ~body =
   let whole_value_var = gen_symbol ~prefix:"__pattern_syntax" () in
   let whole_value_pattern = ppat_var ~loc { txt = whole_value_var; loc } in
   let whole_value_expr = pexp_ident ~loc { txt = Lident whole_value_var; loc } in
-  match Ext.destruct ~assume_exhaustive ~loc ~modul ~lhs ~rhs:whole_value_expr ~body with
+  match destruct ~assume_exhaustive:true ~loc ~modul ~lhs ~rhs:whole_value_expr ~body with
   | Some destruction -> pexp_fun ~loc Nolabel None whole_value_pattern destruction
-  | None ->
-    if assume_exhaustive
-    then pexp_fun ~loc Nolabel None lhs body
-    else pexp_function ~loc [ case ~lhs ~guard:None ~rhs:body; catch_all_case ~loc ]
+  | None -> pexp_fun ~loc Nolabel None lhs body
 ;;
 
-let expand_letn (module Ext : Ext) ~assume_exhaustive ~loc ~modul bindings body =
+let expand_letn (module Ext : Ext) ~loc ~modul bindings body =
   let n = List.length bindings in
   let operator =
     match n with
@@ -147,15 +144,9 @@ let expand_letn (module Ext : Ext) ~assume_exhaustive ~loc ~modul bindings body 
   in
   let func =
     List.fold_right bindings ~init:body ~f:(fun { pvb_pat; _ } lower ->
-      maybe_destruct
-        (module Ext)
-        ~assume_exhaustive
-        ~modul
-        ~loc
-        ~lhs:pvb_pat
-        ~body:lower)
+      maybe_destruct ~destruct:Ext.destruct ~modul ~loc ~lhs:pvb_pat ~body:lower)
   in
-  let args = List.append bindings_args [ Labelled "f", func ] in
+  let args = bindings_args @ [ Labelled "f", func ] in
   pexp_apply ~loc operator args
 ;;
 
@@ -167,7 +158,7 @@ let maybe_open ~extension_kind ~to_open:module_to_open expr =
   else expr
 ;;
 
-let expand_let (module Ext : Ext) ~assume_exhaustive ~loc ~modul bindings body =
+let expand_let (module Ext : Ext) ~loc ~modul bindings body =
   if List.length bindings = 0
   then invalid_arg "expand_let: list of bindings must be non-empty";
   (* Build expression [both E1 (both E2 (both ...))] *)
@@ -184,9 +175,7 @@ let expand_let (module Ext : Ext) ~assume_exhaustive ~loc ~modul bindings body =
       let loc = { p.ppat_loc with loc_ghost = true } in
       ppat_tuple ~loc [ p; acc ])
   in
-  let fn =
-    maybe_destruct (module Ext) ~assume_exhaustive ~loc ~modul ~lhs:nested_patterns ~body
-  in
+  let fn = maybe_destruct ~destruct:Ext.destruct ~loc ~modul ~lhs:nested_patterns ~body in
   bind_apply ~op_name:Ext.name ~loc ~modul ~arg:nested_boths ~fn
 ;;
 
@@ -298,6 +287,18 @@ let replace_variable ~f =
   replacer#pattern
 ;;
 
+let with_warning_attribute str expr =
+  let loc = expr.pexp_loc in
+  { expr with
+    pexp_attributes =
+      attribute
+        ~loc
+        ~name:(Loc.make ~loc "ocaml.warning")
+        ~payload:(PStr [ pstr_eval ~loc (estring ~loc str) [] ])
+      :: expr.pexp_attributes
+  }
+;;
+
 let project_bound_var ~loc ~modul exp ~pat:{ pat; assume_exhaustive } var =
   let project_the_var =
     (* We use a fresh var name because the compiler conflates all definitions with the
@@ -309,13 +310,15 @@ let project_bound_var ~loc ~modul exp ~pat:{ pat; assume_exhaustive } var =
     in
     case ~lhs:pattern ~guard:None ~rhs:(evar ~loc tmpvar)
   in
-  let catch_all_case = if assume_exhaustive then [] else [ catch_all_case ~loc ] in
-  bind_apply
-    ~op_name:Map.name
-    ~loc
-    ~modul
-    ~arg:exp
-    ~fn:(pexp_function ~loc (project_the_var :: catch_all_case))
+  let fn =
+    if assume_exhaustive
+    then pexp_function ~loc [ project_the_var ]
+    else
+      with_warning_attribute
+        "-11" (* unused case warning *)
+        (pexp_function ~loc [ project_the_var; catch_all_case ~loc ])
+  in
+  bind_apply ~op_name:Map.name ~loc ~modul ~arg:exp ~fn
 ;;
 
 let project_bound_vars ~loc ~modul exp ~lhs =
@@ -352,15 +355,10 @@ let name_expr expr =
     [ value_binding ~loc ~pat:(pvar ~loc var) ~expr ], evar ~loc var
 ;;
 
-let warning_attribute ~loc str =
-  attribute
-    ~loc
-    ~name:(Loc.make ~loc "ocaml.warning")
-    ~payload:(PStr [ pstr_eval ~loc (estring ~loc str) [] ])
-;;
-
 let case_number ~loc ~modul exp indexed_cases =
-  { (expand_match
+  with_warning_attribute
+    "-26-27" (* unused variable warnings *)
+    (expand_match
        (module Map)
        ~extension_kind:Extension_kind.default
        ~loc
@@ -368,17 +366,19 @@ let case_number ~loc ~modul exp indexed_cases =
        exp
        (List.map indexed_cases ~f:(fun (idx, case) ->
           { case with pc_rhs = eint ~loc idx })))
-    with
-      pexp_attributes = (* Unused variable warnings *)
-        [ warning_attribute ~loc "-26-27" ]
-  }
 ;;
 
 let expand_case ~destruct expr (idx, match_case) =
   let loc = { match_case.pc_lhs.ppat_loc with loc_ghost = true } in
   let rhs =
     destruct ~lhs:match_case.pc_lhs ~rhs:expr ~body:match_case.pc_rhs
-    |> Option.value ~default:expr
+    |> Option.value
+         ~default:
+           (pexp_let
+              ~loc
+              Nonrecursive
+              [ value_binding ~loc ~pat:match_case.pc_lhs ~expr ]
+              match_case.pc_rhs)
   in
   case ~lhs:(pint ~loc idx) ~guard:None ~rhs
 ;;
@@ -405,7 +405,8 @@ module Sub : Ext = struct
   let name = "sub"
 
   let disallow_expression _ = function
-    (* It is worse to use let%sub...and instead of multiple let%sub in a row, so disallow it. *)
+    (* It is worse to use let%sub...and instead of multiple let%sub in a row,
+       so disallow it. *)
     | Pexp_let (Nonrecursive, _ :: _ :: _, _) ->
       Error "let%sub should not be used with 'and'."
     | Pexp_while (_, _) -> Error "while%sub is not supported"
@@ -413,12 +414,12 @@ module Sub : Ext = struct
   ;;
 
   let sub_return ~loc ~modul ~lhs ~rhs ~body =
-    let returned_expression = qualified_return ~loc ~modul rhs in
+    let returned_rhs = qualified_return ~loc ~modul rhs in
     bind_apply
       ~op_name:name
       ~loc
       ~modul
-      ~arg:returned_expression
+      ~arg:returned_rhs
       ~fn:(pexp_fun Nolabel None ~loc lhs body)
   ;;
 
@@ -430,9 +431,22 @@ module Sub : Ext = struct
       let pattern_projections =
         project_pattern_variables ~assume_exhaustive ~modul bindings
       in
-      List.fold pattern_projections ~init:body ~f:(fun expr { txt = binding; loc } ->
-        sub_return ~loc ~modul ~lhs:binding.pvb_pat ~rhs:binding.pvb_expr ~body:expr)
-      |> Option.some
+      Some
+        (match pattern_projections with
+         (* We handle the special case of having no pattern projections (which
+            means there were no variables to be projected) by projecting the
+            whole pattern once, just to ensure that the expression being
+            projected matches the pattern. We only do this when the pattern is
+            exhaustive, because otherwise the pattern matching is already
+            happening inside the [switch] call. *)
+         | [] when assume_exhaustive ->
+           let projection_case = case ~lhs ~guard:None ~rhs:(eunit ~loc) in
+           let fn = pexp_function ~loc [ projection_case ] in
+           let rhs = bind_apply ~op_name:Map.name ~loc ~modul ~arg:rhs ~fn in
+           sub_return ~loc ~modul ~lhs:(ppat_any ~loc) ~rhs ~body
+         | _ ->
+           List.fold pattern_projections ~init:body ~f:(fun expr { txt = binding; loc } ->
+             sub_return ~loc ~modul ~lhs:binding.pvb_pat ~rhs:binding.pvb_expr ~body:expr))
   ;;
 
   let switch ~loc ~modul case_number case_number_cases =
@@ -446,18 +460,24 @@ module Sub : Ext = struct
          ])
   ;;
 
-  let expand_match ~loc ~modul expr cases =
-    let var = gen_symbol ~prefix:"__pattern_syntax" () in
-    sub_return
-      ~loc
-      ~modul
-      ~lhs:(pvar ~loc var)
-      ~rhs:expr
-      ~body:(indexed_match ~loc ~modul ~destruct ~switch (evar ~loc var) cases)
+  let expand_match ~loc ~modul expr = function
+    | [] -> assert false
+    | [ (case : case) ] ->
+      let returned_expr = qualified_return ~loc ~modul expr in
+      let fn = maybe_destruct ~destruct ~loc ~modul ~lhs:case.pc_lhs ~body:case.pc_rhs in
+      bind_apply ~op_name:name ~loc ~modul ~arg:returned_expr ~fn
+    | cases ->
+      let var = gen_symbol ~prefix:"__pattern_syntax" () in
+      sub_return
+        ~loc
+        ~modul
+        ~lhs:(pvar ~loc var)
+        ~rhs:expr
+        ~body:(indexed_match ~loc ~modul ~destruct ~switch (evar ~loc var) cases)
   ;;
 end
 
-let expand (module Ext : Ext) extension_kind ?(assume_exhaustive = true) ~modul expr =
+let expand (module Ext : Ext) extension_kind ~modul expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   let expansion =
     let expr_desc =
@@ -489,8 +509,8 @@ let expand (module Ext : Ext) extension_kind ?(assume_exhaustive = true) ~modul 
       in
       let f =
         if extension_kind.collapse_binds
-        then expand_letn (module Ext) ~assume_exhaustive ~modul
-        else expand_let (module Ext) ~assume_exhaustive ~modul
+        then expand_letn (module Ext) ~modul
+        else expand_let (module Ext) ~modul
       in
       expand_with_tmp_vars ~loc bindings expr ~f
     | Pexp_let (Recursive, _, _) ->

@@ -134,17 +134,7 @@ let%expect_test "very simple match%sub" =
   |> print_expr;
   [%expect
     {|
-   let () =
-     Let_syntax.sub (Let_syntax.return MY_EXPR_1)
-       ~f:(fun __pattern_syntax__005_ ->
-             ((Let_syntax.switch
-                 ~match_:((Let_syntax.map __pattern_syntax__005_
-                             ~f:(function | a -> 0))[@ocaml.warning "-26-27"])
-                 ~branches:1
-                 ~with_:(function
-                         | 0 -> __pattern_syntax__005_
-                         | _ -> assert false))
-             [@merlin.hide ])) |}]
+   let () = Let_syntax.sub (Let_syntax.return MY_EXPR_1) ~f:(fun a -> BODY_1) |}]
 ;;
 
 let%expect_test "destructuring let%sub" =
@@ -215,21 +205,24 @@ let%expect_test "destructuring match%sub" =
                              Let_syntax.sub
                                (Let_syntax.return
                                   ((Let_syntax.map __pattern_syntax__010_
-                                      ~f:(function
-                                          | Choice_1 (_, __pattern_syntax__012_)
-                                              -> __pattern_syntax__012_
-                                          | _ -> assert false))[@merlin.hide ]))
+                                      ~f:((function
+                                           | Choice_1
+                                               (_, __pattern_syntax__012_) ->
+                                               __pattern_syntax__012_
+                                           | _ -> assert false)
+                                      [@ocaml.warning "-11"]))[@merlin.hide ]))
                                ~f:(fun b ->
                                      Let_syntax.sub
                                        (Let_syntax.return
                                           ((Let_syntax.map
                                               __pattern_syntax__010_
-                                              ~f:(function
-                                                  | Choice_1
-                                                      (__pattern_syntax__011_,
-                                                       _)
-                                                      -> __pattern_syntax__011_
-                                                  | _ -> assert false))
+                                              ~f:((function
+                                                   | Choice_1
+                                                       (__pattern_syntax__011_,
+                                                        _)
+                                                       -> __pattern_syntax__011_
+                                                   | _ -> assert false)
+                                              [@ocaml.warning "-11"]))
                                           [@merlin.hide ]))
                                        ~f:(fun a -> CHOICE_1_BODY))
                          | 1 -> CHOICE_2_BODY
@@ -239,7 +232,7 @@ let%expect_test "destructuring match%sub" =
    |}]
 ;;
 
-let%expect_test "module-qualified match%sub" =
+let%expect_test "single-case match%sub doesn't call switch" =
   let modul = Some { txt = lident "Module"; loc } in
   Ppx_let_expander.expand
     Ppx_let_expander.sub
@@ -251,26 +244,85 @@ let%expect_test "module-qualified match%sub" =
   |> print_expr;
   [%expect
     {|
+    let () =
+      Module.Let_syntax.Let_syntax.sub
+        (Module.Let_syntax.Let_syntax.return MY_EXPR)
+        ~f:(fun __pattern_syntax__013_ ->
+              Module.Let_syntax.Let_syntax.sub
+                (Module.Let_syntax.Let_syntax.return
+                   ((Module.Let_syntax.Let_syntax.map __pattern_syntax__013_
+                       ~f:(function
+                           | Choice_1 __pattern_syntax__014_ ->
+                               __pattern_syntax__014_))[@merlin.hide ]))
+                ~f:(fun x -> CHOICE_1_BODY)) |}]
+;;
+
+let%expect_test "module-qualified match%sub" =
+  let modul = Some { txt = lident "Module"; loc } in
+  Ppx_let_expander.expand
+    Ppx_let_expander.sub
+    Ppx_let_expander.Extension_kind.default
+    ~modul
+    [%expr
+      match MY_EXPR with
+      | Choice_1 x -> CHOICE_1_BODY
+      | Choice_2 x -> CHOICE_2_BODY]
+  |> print_expr;
+  [%expect
+    {|
    let () =
      Module.Let_syntax.Let_syntax.sub
        (Module.Let_syntax.Let_syntax.return MY_EXPR)
-       ~f:(fun __pattern_syntax__013_ ->
+       ~f:(fun __pattern_syntax__015_ ->
              ((Module.Let_syntax.Let_syntax.switch
                  ~match_:((Module.Let_syntax.Let_syntax.map
-                             __pattern_syntax__013_
-                             ~f:(function | Choice_1 x -> 0))
-                 [@ocaml.warning "-26-27"]) ~branches:1
+                             __pattern_syntax__015_
+                             ~f:(function | Choice_1 x -> 0 | Choice_2 x -> 1))
+                 [@ocaml.warning "-26-27"]) ~branches:2
                  ~with_:(function
                          | 0 ->
                              Module.Let_syntax.Let_syntax.sub
                                (Module.Let_syntax.Let_syntax.return
                                   ((Module.Let_syntax.Let_syntax.map
-                                      __pattern_syntax__013_
-                                      ~f:(function
-                                          | Choice_1 __pattern_syntax__014_ ->
-                                              __pattern_syntax__014_))
-                                  [@merlin.hide ])) ~f:(fun x -> CHOICE_1_BODY)
+                                      __pattern_syntax__015_
+                                      ~f:((function
+                                           | Choice_1 __pattern_syntax__016_ ->
+                                               __pattern_syntax__016_
+                                           | _ -> assert false)
+                                      [@ocaml.warning "-11"]))[@merlin.hide ]))
+                               ~f:(fun x -> CHOICE_1_BODY)
+                         | 1 ->
+                             Module.Let_syntax.Let_syntax.sub
+                               (Module.Let_syntax.Let_syntax.return
+                                  ((Module.Let_syntax.Let_syntax.map
+                                      __pattern_syntax__015_
+                                      ~f:((function
+                                           | Choice_2 __pattern_syntax__017_ ->
+                                               __pattern_syntax__017_
+                                           | _ -> assert false)
+                                      [@ocaml.warning "-11"]))[@merlin.hide ]))
+                               ~f:(fun x -> CHOICE_2_BODY)
                          | _ -> assert false))
              [@merlin.hide ]))
    |}]
+;;
+
+let%expect_test "type annotations are preserved" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.sub
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    [%expr
+      let (_ : int) = EXPR in
+      BODY]
+  |> print_expr;
+  [%expect
+    {|
+    let () =
+      Let_syntax.sub EXPR
+        ~f:(fun __pattern_syntax__018_ ->
+              Let_syntax.sub
+                (Let_syntax.return
+                   (Let_syntax.map __pattern_syntax__018_
+                      ~f:(function | (_ : int) -> ()))) ~f:(fun _ -> BODY)) |}]
 ;;
