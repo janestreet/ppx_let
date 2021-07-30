@@ -25,12 +25,14 @@ val ext_full_name : t -> Extension_kind.t -> label
 val bind : t
 val map : t
 val sub : t
+val arr : t
 
 (* Bind each non-wildcard variable of each pattern to the expression which
    projects the bound expression to the variable's component. *)
 val project_pattern_variables
   :  assume_exhaustive:bool
   -> modul:longident loc option
+  -> with_location:bool
   -> value_binding list
   -> value_binding loc list
 

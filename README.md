@@ -345,3 +345,42 @@ let f (either_value : (_, _) Either.t Value.t) page1 page2 =
       | _ -> assert false)
 ;;
 ```
+
+let%arr
+-------
+
+One way of looking at arrow programs (i.e. programs involving
+`let%sub`) is that `let%map...and` builds a computation that does
+work, and `let%sub` saves the work to a variable so that other
+computations can share the result.
+
+A common mistake is to forget to save a computation; when the
+computation gets used twice, the work must be done twice, rather than
+getting shared between the two occurrences. The form `let%arr...and`
+aims to eliminate such mistakes via the type-system. It extends the
+`Let_syntax` module with an `arr` function that lifts a function to an
+arrow.
+
+```ocaml
+val arr : 'a Value.t -> f:('a -> 'b) -> 'b Computation.t
+```
+
+The signature is the same as `map` except the result is
+a `Computation.t`, and not a `Value.t`. The implementation of `arr` is
+equivalent to `return (map x ~f)`. Roughly the only thing you can do
+with a `Computation.t` is use `let%sub` to gain access to a `Value.t`
+handle to the computation. Thus, using `arr` forces the user to use as
+much sharing as possible. Of course, you can always duplicate work by
+copy-pasting code, but it won't happen accidentally.
+
+An unrelated distinction of `let%arr` is that it tracks
+`Lexing.position`. That is, the signature of `arr` is actually the
+following:
+
+```ocaml
+val arr : ?here:Lexing.position -> 'a Value.t -> f:('a -> 'b) -> 'b Computation.t
+```
+
+The `let%arr` form is as a testing ground for source location
+tracking. It's likely that eventually all the other binding forms will
+also track location.

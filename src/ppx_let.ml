@@ -25,5 +25,7 @@ let () =
       ; ext map Extension_kind.n_open
       ; ext sub Extension_kind.default
       ; ext sub Extension_kind.default_open
+      ; ext arr Extension_kind.default
+      ; ext arr Extension_kind.default_open
       ]
 ;;

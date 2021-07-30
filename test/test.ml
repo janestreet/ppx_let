@@ -209,6 +209,7 @@ module Arrow_example = struct
         val map : 'a v -> f:('a -> 'b) -> 'b v
         val both : 'a v -> 'b v -> ('a * 'b) v
         val switch : match_:int v -> branches:int -> with_:(int -> 'b c) -> 'b c
+        val arr : ?here:Lexing.position -> 'a v -> f:('a -> 'b) -> 'b c
       end
     end
   end = struct
@@ -221,6 +222,7 @@ module Arrow_example = struct
     let map x ~f = f x
     let both a b = a, b
     let switch ~match_ ~branches:_ ~with_ = with_ match_
+    let arr ?here:_ x ~f = return (f x)
 
     module Let_syntax = struct
       let return = return
@@ -231,6 +233,7 @@ module Arrow_example = struct
         let map = map
         let both = both
         let switch = switch
+        let arr = arr
       end
     end
   end
@@ -269,5 +272,10 @@ module Arrow_example = struct
       return
         (let%map b = b in
          b = 1)
+  ;;
+
+  let _arrow_example_5 (a : _ X.v) : _ X.c =
+    let%arr a = a in
+    a
   ;;
 end
