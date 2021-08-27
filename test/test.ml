@@ -205,7 +205,7 @@ module Arrow_example = struct
 
       module Let_syntax : sig
         val return : 'a v -> 'a c
-        val sub : 'a c -> f:('a v -> 'b c) -> 'b c
+        val sub : ?here:Lexing.position -> 'a c -> f:('a v -> 'b c) -> 'b c
         val map : 'a v -> f:('a -> 'b) -> 'b v
         val both : 'a v -> 'b v -> ('a * 'b) v
         val switch : match_:int v -> branches:int -> with_:(int -> 'b c) -> 'b c
@@ -218,7 +218,7 @@ module Arrow_example = struct
 
     let return_v x = x
     let return x = x
-    let sub x ~f = f x
+    let sub ?here:_ x ~f = f x
     let map x ~f = f x
     let both a b = a, b
     let switch ~match_ ~branches:_ ~with_ = with_ match_

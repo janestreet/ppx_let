@@ -447,7 +447,7 @@ let indexed_match ~loc ~modul ~destruct ~switch expr cases =
 
 module Sub : Ext = struct
   let name = "sub"
-  let with_location = false
+  let with_location = true
 
   let disallow_expression _ = function
     (* It is worse to use let%sub...and instead of multiple let%sub in a row,
@@ -475,7 +475,11 @@ module Sub : Ext = struct
     | _ ->
       let bindings = [ value_binding ~loc ~pat:lhs ~expr:rhs ] in
       let pattern_projections =
-        project_pattern_variables ~assume_exhaustive ~modul ~with_location bindings
+        project_pattern_variables
+          ~assume_exhaustive
+          ~modul
+          ~with_location:Map.with_location
+          bindings
       in
       Some
         (match pattern_projections with
@@ -489,7 +493,13 @@ module Sub : Ext = struct
            let projection_case = case ~lhs ~guard:None ~rhs:(eunit ~loc) in
            let fn = pexp_function ~loc [ projection_case ] in
            let rhs =
-             bind_apply ~op_name:Map.name ~loc ~modul ~with_location ~arg:rhs ~fn
+             bind_apply
+               ~op_name:Map.name
+               ~loc
+               ~modul
+               ~with_location:Map.with_location
+               ~arg:rhs
+               ~fn
            in
            sub_return ~loc ~modul ~lhs:(ppat_any ~loc) ~rhs ~body
          | _ ->

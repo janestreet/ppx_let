@@ -16,8 +16,16 @@ let%expect_test "single let%sub " =
       let a = MY_EXPR in
       MY_BODY]
   |> print_expr;
-  [%expect {|
-    let () = Let_syntax.sub MY_EXPR ~f:(fun a -> MY_BODY) |}]
+  [%expect
+    {|
+    let () =
+      Let_syntax.sub
+        ~here:{
+                Ppx_here_lib.pos_fname = "_none_";
+                pos_lnum = 1;
+                pos_cnum = (-1);
+                pos_bol = 0
+              } MY_EXPR ~f:(fun a -> MY_BODY) |}]
 ;;
 
 let%expect_test "single pattern sub with modul" =
@@ -29,8 +37,16 @@ let%expect_test "single pattern sub with modul" =
       let a = MY_EXPR in
       MY_BODY]
   |> print_expr;
-  [%expect {|
-    let () = X.Let_syntax.Let_syntax.sub MY_EXPR ~f:(fun a -> MY_BODY) |}]
+  [%expect
+    {|
+    let () =
+      X.Let_syntax.Let_syntax.sub
+        ~here:{
+                Ppx_here_lib.pos_fname = "_none_";
+                pos_lnum = 1;
+                pos_cnum = (-1);
+                pos_bol = 0
+              } MY_EXPR ~f:(fun a -> MY_BODY) |}]
 ;;
 
 let assert_fails_with_syntax_error ~f =
@@ -68,8 +84,16 @@ let%expect_test "single pattern sub open" =
       let a = MY_EXPR_1 in
       MY_BODY]
   |> print_expr;
-  [%expect {|
-    let () = Let_syntax.sub MY_EXPR_1 ~f:(fun a -> MY_BODY) |}]
+  [%expect
+    {|
+    let () =
+      Let_syntax.sub
+        ~here:{
+                Ppx_here_lib.pos_fname = "_none_";
+                pos_lnum = 1;
+                pos_cnum = (-1);
+                pos_bol = 0
+              } MY_EXPR_1 ~f:(fun a -> MY_BODY) |}]
 ;;
 
 let%expect_test "double pattern map open" =
@@ -110,7 +134,13 @@ let%expect_test "if%sub is supported" =
   [%expect
     {|
     let () =
-      Let_syntax.sub (Let_syntax.return MY_EXPR_1)
+      Let_syntax.sub
+        ~here:{
+                Ppx_here_lib.pos_fname = "_none_";
+                pos_lnum = 1;
+                pos_cnum = (-1);
+                pos_bol = 0
+              } (Let_syntax.return MY_EXPR_1)
         ~f:(fun __pattern_syntax__004_ ->
               ((Let_syntax.switch
                   ~match_:((Let_syntax.map __pattern_syntax__004_
@@ -134,7 +164,14 @@ let%expect_test "very simple match%sub" =
   |> print_expr;
   [%expect
     {|
-   let () = Let_syntax.sub (Let_syntax.return MY_EXPR_1) ~f:(fun a -> BODY_1) |}]
+   let () =
+     Let_syntax.sub
+       ~here:{
+               Ppx_here_lib.pos_fname = "_none_";
+               pos_lnum = 1;
+               pos_cnum = (-1);
+               pos_bol = 0
+             } (Let_syntax.return MY_EXPR_1) ~f:(fun a -> BODY_1) |}]
 ;;
 
 let%expect_test "destructuring let%sub" =
@@ -149,9 +186,21 @@ let%expect_test "destructuring let%sub" =
   [%expect
     {|
    let () =
-     Let_syntax.sub MY_EXPR
+     Let_syntax.sub
+       ~here:{
+               Ppx_here_lib.pos_fname = "_none_";
+               pos_lnum = 1;
+               pos_cnum = (-1);
+               pos_bol = 0
+             } MY_EXPR
        ~f:(fun __pattern_syntax__006_ ->
              Let_syntax.sub
+               ~here:{
+                       Ppx_here_lib.pos_fname = "_none_";
+                       pos_lnum = 1;
+                       pos_cnum = (-1);
+                       pos_bol = 0
+                     }
                (Let_syntax.return
                   ((Let_syntax.map __pattern_syntax__006_
                       ~f:(function
@@ -159,6 +208,12 @@ let%expect_test "destructuring let%sub" =
                               __pattern_syntax__009_))[@merlin.hide ]))
                ~f:(fun c ->
                      Let_syntax.sub
+                       ~here:{
+                               Ppx_here_lib.pos_fname = "_none_";
+                               pos_lnum = 1;
+                               pos_cnum = (-1);
+                               pos_bol = 0
+                             }
                        (Let_syntax.return
                           ((Let_syntax.map __pattern_syntax__006_
                               ~f:(function
@@ -167,6 +222,12 @@ let%expect_test "destructuring let%sub" =
                           [@merlin.hide ]))
                        ~f:(fun b ->
                              Let_syntax.sub
+                               ~here:{
+                                       Ppx_here_lib.pos_fname = "_none_";
+                                       pos_lnum = 1;
+                                       pos_cnum = (-1);
+                                       pos_bol = 0
+                                     }
                                (Let_syntax.return
                                   ((Let_syntax.map __pattern_syntax__006_
                                       ~f:(function
@@ -191,7 +252,13 @@ let%expect_test "destructuring match%sub" =
   [%expect
     {|
    let () =
-     Let_syntax.sub (Let_syntax.return MY_EXPR)
+     Let_syntax.sub
+       ~here:{
+               Ppx_here_lib.pos_fname = "_none_";
+               pos_lnum = 1;
+               pos_cnum = (-1);
+               pos_bol = 0
+             } (Let_syntax.return MY_EXPR)
        ~f:(fun __pattern_syntax__010_ ->
              ((Let_syntax.switch
                  ~match_:((Let_syntax.map __pattern_syntax__010_
@@ -203,6 +270,12 @@ let%expect_test "destructuring match%sub" =
                  ~with_:(function
                          | 0 ->
                              Let_syntax.sub
+                               ~here:{
+                                       Ppx_here_lib.pos_fname = "_none_";
+                                       pos_lnum = 1;
+                                       pos_cnum = (-1);
+                                       pos_bol = 0
+                                     }
                                (Let_syntax.return
                                   ((Let_syntax.map __pattern_syntax__010_
                                       ~f:((function
@@ -213,6 +286,12 @@ let%expect_test "destructuring match%sub" =
                                       [@ocaml.warning "-11"]))[@merlin.hide ]))
                                ~f:(fun b ->
                                      Let_syntax.sub
+                                       ~here:{
+                                               Ppx_here_lib.pos_fname = "_none_";
+                                               pos_lnum = 1;
+                                               pos_cnum = (-1);
+                                               pos_bol = 0
+                                             }
                                        (Let_syntax.return
                                           ((Let_syntax.map
                                               __pattern_syntax__010_
@@ -246,9 +325,20 @@ let%expect_test "single-case match%sub doesn't call switch" =
     {|
     let () =
       Module.Let_syntax.Let_syntax.sub
-        (Module.Let_syntax.Let_syntax.return MY_EXPR)
+        ~here:{
+                Ppx_here_lib.pos_fname = "_none_";
+                pos_lnum = 1;
+                pos_cnum = (-1);
+                pos_bol = 0
+              } (Module.Let_syntax.Let_syntax.return MY_EXPR)
         ~f:(fun __pattern_syntax__013_ ->
               Module.Let_syntax.Let_syntax.sub
+                ~here:{
+                        Ppx_here_lib.pos_fname = "_none_";
+                        pos_lnum = 1;
+                        pos_cnum = (-1);
+                        pos_bol = 0
+                      }
                 (Module.Let_syntax.Let_syntax.return
                    ((Module.Let_syntax.Let_syntax.map __pattern_syntax__013_
                        ~f:(function
@@ -272,7 +362,12 @@ let%expect_test "module-qualified match%sub" =
     {|
    let () =
      Module.Let_syntax.Let_syntax.sub
-       (Module.Let_syntax.Let_syntax.return MY_EXPR)
+       ~here:{
+               Ppx_here_lib.pos_fname = "_none_";
+               pos_lnum = 1;
+               pos_cnum = (-1);
+               pos_bol = 0
+             } (Module.Let_syntax.Let_syntax.return MY_EXPR)
        ~f:(fun __pattern_syntax__015_ ->
              ((Module.Let_syntax.Let_syntax.switch
                  ~match_:((Module.Let_syntax.Let_syntax.map
@@ -282,6 +377,12 @@ let%expect_test "module-qualified match%sub" =
                  ~with_:(function
                          | 0 ->
                              Module.Let_syntax.Let_syntax.sub
+                               ~here:{
+                                       Ppx_here_lib.pos_fname = "_none_";
+                                       pos_lnum = 1;
+                                       pos_cnum = (-1);
+                                       pos_bol = 0
+                                     }
                                (Module.Let_syntax.Let_syntax.return
                                   ((Module.Let_syntax.Let_syntax.map
                                       __pattern_syntax__015_
@@ -293,6 +394,12 @@ let%expect_test "module-qualified match%sub" =
                                ~f:(fun x -> CHOICE_1_BODY)
                          | 1 ->
                              Module.Let_syntax.Let_syntax.sub
+                               ~here:{
+                                       Ppx_here_lib.pos_fname = "_none_";
+                                       pos_lnum = 1;
+                                       pos_cnum = (-1);
+                                       pos_bol = 0
+                                     }
                                (Module.Let_syntax.Let_syntax.return
                                   ((Module.Let_syntax.Let_syntax.map
                                       __pattern_syntax__015_
@@ -319,9 +426,21 @@ let%expect_test "type annotations are preserved" =
   [%expect
     {|
     let () =
-      Let_syntax.sub EXPR
+      Let_syntax.sub
+        ~here:{
+                Ppx_here_lib.pos_fname = "_none_";
+                pos_lnum = 1;
+                pos_cnum = (-1);
+                pos_bol = 0
+              } EXPR
         ~f:(fun __pattern_syntax__018_ ->
               Let_syntax.sub
+                ~here:{
+                        Ppx_here_lib.pos_fname = "_none_";
+                        pos_lnum = 1;
+                        pos_cnum = (-1);
+                        pos_bol = 0
+                      }
                 (Let_syntax.return
                    (Let_syntax.map __pattern_syntax__018_
                       ~f:(function | (_ : int) -> ()))) ~f:(fun _ -> BODY)) |}]
