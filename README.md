@@ -71,6 +71,25 @@ As a further convenience, ppx\_let accepts `%bind` and `%map` on the `if`
 keyword. The expression `if%bind expr1 then expr2 else expr3` is morally
 equivalent to `let%bind p = expr1 in if p then expr2 else expr3`.
 
+### Function statements
+
+We accept `function%bind` and `function%map` too.
+
+```ocaml
+let f = function%bind
+  | Some a -> g a
+  | None -> h
+```
+
+is equivalent to
+
+```ocaml
+let f = fun temp ->
+  match%bind temp with
+  | Some a -> g a
+  | None -> h
+```
+
 ### While statements
 
 We also expand `while%bind expr1 do expr2 done` as
@@ -254,7 +273,7 @@ let%sub a, b = c in
 BODY
 ```
 
-gets roughly translated to 
+gets roughly translated to
 
 ```ocaml
 let%sub temp_var = c in

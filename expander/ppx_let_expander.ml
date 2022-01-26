@@ -596,6 +596,14 @@ let expand (module Ext : Ext) extension_kind ~modul expr =
       Location.raise_errorf ~loc "'let%%%s' may not be recursive" ext_full_name
     | Pexp_match (expr, cases) ->
       expand_match (module Ext) ~extension_kind ~loc ~modul expr cases
+    | Pexp_function cases ->
+      let temp_var = gen_symbol ~prefix:"__let_syntax" () in
+      let temp_pattern = ppat_var ~loc { txt = temp_var; loc } in
+      let temp_expr = pexp_ident ~loc { txt = Lident temp_var; loc } in
+      let match_expr =
+        expand_match (module Ext) ~extension_kind ~loc ~modul temp_expr cases
+      in
+      pexp_fun ~loc Nolabel None temp_pattern match_expr
     | Pexp_ifthenelse (expr, then_, else_) ->
       let else_ =
         match else_ with

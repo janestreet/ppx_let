@@ -445,3 +445,75 @@ let%expect_test "type annotations are preserved" =
                    (Let_syntax.map __pattern_syntax__018_
                       ~f:(function | (_ : int) -> ()))) ~f:(fun _ -> BODY)) |}]
 ;;
+
+let%expect_test "function%sub" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.sub
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    [%expr
+      function
+      | Some a -> EXPR_SOME
+      | None -> EXPR_NONE]
+  |> print_expr;
+  [%expect
+    {|
+    let () =
+      fun __let_syntax__019_ ->
+        Let_syntax.sub
+          ~here:{
+                  Ppx_here_lib.pos_fname = "_none_";
+                  pos_lnum = 1;
+                  pos_cnum = (-1);
+                  pos_bol = 0
+                } (Let_syntax.return __let_syntax__019_)
+          ~f:(fun __pattern_syntax__020_ ->
+                ((Let_syntax.switch
+                    ~match_:((Let_syntax.map __pattern_syntax__020_
+                                ~f:(function | Some a -> 0 | None -> 1))
+                    [@ocaml.warning "-26-27"]) ~branches:2
+                    ~with_:(function
+                            | 0 ->
+                                Let_syntax.sub
+                                  ~here:{
+                                          Ppx_here_lib.pos_fname = "_none_";
+                                          pos_lnum = 1;
+                                          pos_cnum = (-1);
+                                          pos_bol = 0
+                                        }
+                                  (Let_syntax.return
+                                     ((Let_syntax.map __pattern_syntax__020_
+                                         ~f:((function
+                                              | Some __pattern_syntax__021_ ->
+                                                  __pattern_syntax__021_
+                                              | _ -> assert false)
+                                         [@ocaml.warning "-11"]))[@merlin.hide ]))
+                                  ~f:(fun a -> EXPR_SOME)
+                            | 1 -> EXPR_NONE
+                            | _ -> assert false))
+                [@merlin.hide ])) |}]
+;;
+
+let%expect_test "function%arr" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.arr
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    [%expr
+      function
+      | Some a -> EXPR_SOME
+      | None -> EXPR_NONE]
+  |> print_expr;
+  [%expect
+    {|
+    let () =
+      fun __let_syntax__022_ ->
+        Let_syntax.arr
+          ~here:{
+                  Ppx_here_lib.pos_fname = "_none_";
+                  pos_lnum = 1;
+                  pos_cnum = (-1);
+                  pos_bol = 0
+                } __let_syntax__022_
+          ~f:(function | Some a -> EXPR_SOME | None -> EXPR_NONE) |}]
+;;

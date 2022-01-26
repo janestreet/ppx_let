@@ -80,6 +80,18 @@ module Monad_example = struct
 
   let _mif a : _ X.t = if%bind_open a then return true else return false
   let _mif' a : _ X.t = if%map a then true else false
+
+  let _mj : int X.t -> bool X.t =
+    function%bind
+    | 0 -> return true
+    | _ -> return false
+  ;;
+
+  let _mk : int X.t -> bool X.t =
+    function%map
+    | 0 -> true
+    | _ -> false
+  ;;
 end
 
 module Applicative_example = struct
@@ -277,5 +289,29 @@ module Arrow_example = struct
   let _arrow_example_5 (a : _ X.v) : _ X.c =
     let%arr a = a in
     a
+  ;;
+
+  let _arrow_example_6 : 'a X.v -> 'a X.c =
+    function%arr
+    | a -> a
+  ;;
+
+  let _arrow_example_7 : 'a X.v -> 'a X.c =
+    function%sub
+    | a -> return a
+  ;;
+
+  let _arrow_example_8 : default:'a -> 'a option X.v -> 'a X.c =
+    fun ~default ->
+      function%arr
+      | Some a -> a
+      | None -> default
+  ;;
+
+  let _arrow_example_9 : default:'a X.v -> 'a option X.v -> 'a X.c =
+    fun ~default ->
+      function%sub
+      | Some a -> return a
+      | None -> return default
   ;;
 end
