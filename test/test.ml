@@ -315,3 +315,33 @@ module Arrow_example = struct
       | None -> return default
   ;;
 end
+
+let () =
+  (* Use this code to test if :MerlinTypeOf behaves properly. In particular,
+     [lhs_*] variables should have type 'a instead of 'a Monad_example.X.t. *)
+  let open Monad_example.X.Let_syntax in
+  let rhs_a = return 1 in
+  let rhs_b = return 1. in
+  let rhs_c = return 'c' in
+  let (_ : _) =
+    (* Non-parallel sequence of binds. *)
+    let%bind lhs_a = rhs_a in
+    let%bind lhs_b = rhs_b in
+    let%bind lhs_c = rhs_c in
+    return (lhs_a, lhs_b, lhs_c)
+  in
+  let tuple =
+    (* Parallel bind. *)
+    let%bind lhs_a = rhs_a
+    and lhs_b = rhs_b
+    and lhs_c = rhs_c in
+    return (lhs_a, lhs_b, lhs_c)
+  in
+  let (_ : _) =
+    (* Destructuring parallel bind. *)
+    let%bind lhs_a, lhs_b, lhs_c = tuple
+    and lhs_a', lhs_b', lhs_c' = tuple in
+    return (lhs_a, lhs_b, lhs_c, lhs_a', lhs_b', lhs_c')
+  in
+  ()
+;;

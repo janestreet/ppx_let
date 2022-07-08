@@ -2,10 +2,7 @@ open Core
 open Ppxlib
 
 let loc = Location.none
-
-let print_expr expr =
-  Pprintast.string_of_structure [%str let () = [%e expr]] |> print_string
-;;
+let print_expr expr = Pprintast.string_of_expression expr |> print_string
 
 let%expect_test "while%bind expansion" =
   Ppx_let_expander.expand
@@ -19,13 +16,12 @@ let%expect_test "while%bind expansion" =
   |> print_expr;
   [%expect
     {|
-    let () =
-      let rec __let_syntax_loop__001_ () =
-        Let_syntax.bind MY_CONDITION
-          ~f:(function
-              | true -> Let_syntax.bind MY_BODY ~f:__let_syntax_loop__001_
-              | false -> Let_syntax.return ()) in
-      __let_syntax_loop__001_ () |}]
+    let rec __let_syntax_loop__001_ () =
+      Let_syntax.bind MY_CONDITION
+        ~f:(function
+            | true -> Let_syntax.bind MY_BODY ~f:__let_syntax_loop__001_
+            | false -> Let_syntax.return ()) in
+    __let_syntax_loop__001_ () |}]
 ;;
 
 let%expect_test "while%bind trivial test" =

@@ -1,4 +1,4 @@
-(* -*- tuareg -*- *)
+#print_line_numbers true
 
 module Let_syntax = struct
   type 'a t = T of 'a
@@ -21,7 +21,7 @@ let (_ : _) =
 
 [%%expect
   {|
-Line _, characters _-_:
+Line 18, characters 12-16:
 Error: This expression has type doc:string -> (int * string) Let_syntax.t
        but an expression was expected of type 'a Let_syntax.t
 |}]

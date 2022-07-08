@@ -1,5 +1,3 @@
-(* -*- tuareg -*- *)
-
 module Let_syntax = struct
   type 'a t = T of 'a
 
