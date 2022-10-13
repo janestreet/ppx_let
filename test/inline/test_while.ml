@@ -20,7 +20,7 @@ let%expect_test "while%bind expansion" =
       Let_syntax.bind MY_CONDITION
         ~f:(function
             | true -> Let_syntax.bind MY_BODY ~f:__let_syntax_loop__001_
-            | false -> Let_syntax.return ()) in
+            | false -> Let_syntax.return ())[@@ppxlib.do_not_enter_value ] in
     __let_syntax_loop__001_ () |}]
 ;;
 

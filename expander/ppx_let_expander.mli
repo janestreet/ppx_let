@@ -19,46 +19,108 @@ module Extension_kind : sig
   val n_open : t
 end
 
-type t
+module type Ext = sig
+  (* The base string of all the related extensions. For example, if the value
+     is "bind", then other extensions will include "bind_open", "bindn", and
+     "bindn_open" - all of which start with "bind" *)
+  val name : string
+  val with_location : bool
+
+  (* Called before each expansion to ensure that the expression being expanded
+     is supported. *)
+  val disallow_expression : Extension_kind.t -> expression_desc -> (unit, string) Result.t
+
+  (* Called when expanding a let-binding (and indirectly, when expanding a
+     match-expression) to destructure [rhs]. The resulting expression should
+     make each variable in [lhs] available for use in [body]. If the result is
+     [None], then no special destructuring is necessary. *)
+  val destruct
+    :  assume_exhaustive:bool
+    -> loc:location
+    -> modul:longident loc option
+    -> lhs:pattern
+    -> rhs:expression
+    -> body:expression
+    -> expression option
+
+  (* Expands any match%[name] expressions. It is also used when expanding
+     if%[name]. *)
+  val expand_match
+    :  loc:location
+    -> modul:longident loc option
+    -> expression
+    -> case list
+    -> expression
+
+  (* [expand] is the function that normally expands let%[name]. [wrap_expansion] can be
+     used to change the parameters given to [expand] and can also tranform the output of
+     [expand]. *)
+  val wrap_expansion
+    :  loc:location
+    -> modul:longident loc option
+    -> value_binding list
+    -> expression
+    -> expand:(loc:location -> value_binding list -> expression -> expression)
+    -> expression
+end
+
+(* A trivial implementation of [Ext.wrap_expansion] that does nothing to change
+   the expansion behavior. *)
+val wrap_expansion_identity
+  :  loc:location
+  -> modul:longident loc option
+  -> value_binding list
+  -> expression
+  -> expand:(loc:location -> value_binding list -> expression -> expression)
+  -> expression
+
+type t = (module Ext)
 
 val ext_full_name : t -> Extension_kind.t -> label
 val bind : t
 val map : t
-val sub : t
-val arr : t
+val variables_of : label loc list Ast_traverse.fold
 
-(* Bind each non-wildcard variable of each pattern to the expression which
-   projects the bound expression to the variable's component. *)
-val project_pattern_variables
-  :  assume_exhaustive:bool
-  -> modul:longident loc option
-  -> with_location:bool
-  -> value_binding list
-  -> value_binding loc list
+module Map : sig
+  val name : string
+  val with_location : bool
+end
 
-(* Produces a match-like expression which first matches on the index of the
-   inhabited case, and then on the case itself. [switch] is used to create a
-   match-like statement, and [destruct] is used to bind each of the variables
-   in the case patterns so that they are available in the case bodies *)
-val indexed_match
-  :  loc:location
+val eoperator : loc:location -> modul:longident loc option -> label -> expression
+
+val expand_match
+  :  t
+  -> extension_kind:Extension_kind.t
+  -> loc:location
   -> modul:longident loc option
-  -> destruct:
+  -> expression
+  -> case list
+  -> expression
+
+val maybe_destruct
+  :  destruct:
        (assume_exhaustive:bool
         -> loc:location
-        -> modul:longident loc option
+        -> modul:'a
         -> lhs:pattern
         -> rhs:expression
         -> body:expression
         -> expression option)
-  -> switch:
-       (loc:location
-        -> modul:longident loc option
-        -> expression
-        -> case list
-        -> expression)
+  -> loc:location
+  -> modul:'a
+  -> lhs:pattern
+  -> body:expression
   -> expression
-  -> case list
+
+val bind_apply
+  :  ?fn_label:string (** default: "f" *)
+  -> op_name:label
+  -> loc:location
+  -> modul:longident loc option
+  -> with_location:bool
+  -> arg:expression
+  -> fn:expression
+  -> unit
   -> expression
 
 val qualified_return
@@ -73,3 +135,5 @@ val expand
   -> modul:longident loc option
   -> expression
   -> expression
+
+val do_not_enter_value : value_binding -> value_binding

@@ -62,7 +62,22 @@ module type Ext = sig
     -> expression
     -> case list
     -> expression
+
+  (* [expand] is the function that normally expands let%[name]. [wrap_expansion] can be
+     used to change the parameters given to [expand] and can also tranform the output of
+     [expand]. *)
+  val wrap_expansion
+    :  loc:location
+    -> modul:longident loc option
+    -> value_binding list
+    -> expression
+    -> expand:(loc:location -> value_binding list -> expression -> expression)
+    -> expression
 end
+
+let wrap_expansion_identity ~loc ~modul:_ bindings expression ~expand =
+  expand ~loc bindings expression
+;;
 
 type t = (module Ext)
 
@@ -95,13 +110,24 @@ let qualified_return ~loc ~modul expr =
 
 let location_arg ~loc = Labelled "here", Ppx_here_expander.lift_position ~loc
 
-let bind_apply ~op_name ~loc ~modul ~with_location ~arg ~fn =
+let bind_apply ?(fn_label = "f") ~op_name ~loc ~modul ~with_location ~arg ~fn () =
   let args =
     if with_location
-    then [ location_arg ~loc; Nolabel, arg; Labelled "f", fn ]
-    else [ Nolabel, arg; Labelled "f", fn ]
+    then [ location_arg ~loc; Nolabel, arg; Labelled fn_label, fn ]
+    else [ Nolabel, arg; Labelled fn_label, fn ]
   in
   pexp_apply ~loc (eoperator ~loc ~modul op_name) args
+;;
+
+let do_not_enter_value vb =
+  let loc = vb.pvb_loc in
+  let attr =
+    { attr_loc = loc
+    ; attr_name = { loc; txt = Attribute.name Ast_traverse.do_not_enter_value_binding }
+    ; attr_payload = PStr []
+    }
+  in
+  { vb with pvb_attributes = attr :: vb.pvb_attributes }
 ;;
 
 let expand_with_tmp_vars ~loc bindings expr ~f =
@@ -115,19 +141,16 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
         let loc = { vb.pvb_expr.pexp_loc with loc_ghost = true } in
         let rhs = { vb with pvb_expr = evar ~loc var } in
         let lhs =
-          { vb with
-            pvb_pat = pvar ~loc var
-          ; pvb_loc = { vb.pvb_loc with loc_ghost = true }
-          }
+          do_not_enter_value
+            { vb with
+              pvb_pat = pvar ~loc var
+            ; pvb_loc = { vb.pvb_loc with loc_ghost = true }
+            }
         in
         rhs, lhs)
       |> List.unzip
     in
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
-;;
-
-let catch_all_case ~loc =
-  case ~lhs:(ppat_any ~loc) ~guard:None ~rhs:(pexp_assert ~loc (ebool ~loc false))
 ;;
 
 let maybe_destruct ~destruct ~loc ~modul ~lhs ~body =
@@ -206,6 +229,7 @@ let expand_let (module Ext : Ext) ~loc ~modul bindings body =
     ~with_location:Ext.with_location
     ~arg:nested_boths
     ~fn
+    ()
 ;;
 
 let expand_match (module Ext : Ext) ~extension_kind ~loc ~modul expr cases =
@@ -239,17 +263,23 @@ let expand_while (module Ext : Ext) ~extension_kind ~loc ~modul ~cond ~body =
         ~with_location:Ext.with_location
         ~arg:body
         ~fn:eloop
+        ()
     in
     let else_ = qualified_return ~loc ~modul (eunit ~loc) in
     expand_if (module Ext) ~extension_kind ~modul ~loc cond then_ else_
   in
   let loop_func = pexp_fun ~loc Nolabel None (punit ~loc) loop_body in
-  pexp_let ~loc Recursive [ value_binding ~loc ~pat:ploop ~expr:loop_func ] loop_call
+  pexp_let
+    ~loc
+    Recursive
+    [ do_not_enter_value (value_binding ~loc ~pat:ploop ~expr:loop_func) ]
+    loop_call
 ;;
 
 module Map : Ext = struct
   let name = "map"
   let with_location = false
+  let wrap_expansion = wrap_expansion_identity
 
   let disallow_expression _ = function
     | Pexp_while (_, _) -> Error "while%%map is not supported. use while%%bind instead."
@@ -266,12 +296,14 @@ module Map : Ext = struct
       ~op_name:name
       ~arg:expr
       ~fn:(pexp_function ~loc cases)
+      ()
   ;;
 end
 
 module Bind : Ext = struct
   let name = "bind"
   let with_location = false
+  let wrap_expansion = wrap_expansion_identity
 
   let disallow_expression { Extension_kind.collapse_binds; _ } = function
     | Pexp_while (_, _) when collapse_binds ->
@@ -289,6 +321,7 @@ module Bind : Ext = struct
       ~op_name:name
       ~arg:expr
       ~fn:(pexp_function ~loc cases)
+      ()
   ;;
 end
 
@@ -311,258 +344,19 @@ let pattern_variables pattern =
     (variables_of#pattern pattern [])
 ;;
 
-type pat_exh =
-  { pat : pattern
-  ; assume_exhaustive : bool
-  }
-
-let replace_variable ~f =
-  let replacer =
-    object
-      inherit Ast_traverse.map as super
-
-      method! pattern p =
-        let p = super#pattern p in
-        let loc = { p.ppat_loc with loc_ghost = true } in
-        match p.ppat_desc with
-        | Ppat_var v ->
-          (match f v with
-           | `Rename tmpvar -> ppat_var ~loc { txt = tmpvar; loc = v.loc }
-           | `Remove -> ppat_any ~loc)
-        | Ppat_alias (sub, v) ->
-          (match f v with
-           | `Rename tmpvar -> ppat_alias ~loc sub { txt = tmpvar; loc = v.loc }
-           | `Remove -> sub)
-        | _ -> p
-    end
-  in
-  replacer#pattern
-;;
-
-let with_warning_attribute str expr =
-  let loc = expr.pexp_loc in
-  { expr with
-    pexp_attributes =
-      attribute
-        ~loc
-        ~name:(Loc.make ~loc "ocaml.warning")
-        ~payload:(PStr [ pstr_eval ~loc (estring ~loc str) [] ])
-      :: expr.pexp_attributes
-  }
-;;
-
-let project_bound_var ~loc ~modul ~with_location exp ~pat:{ pat; assume_exhaustive } var =
-  let project_the_var =
-    (* We use a fresh var name because the compiler conflates all definitions with the
-       name * location, for the purpose of emitting warnings. *)
-    let tmpvar = gen_symbol ~prefix:"__pattern_syntax" () in
-    let pattern =
-      replace_variable pat ~f:(fun v ->
-        if String.equal v.txt var.txt then `Rename tmpvar else `Remove)
+let maybe_enter_value pat expr =
+  match pattern_variables pat with
+  | [ { loc; txt } ] ->
+    let loc = { loc with loc_ghost = true } in
+    let attr =
+      { attr_loc = loc
+      ; attr_name = { loc; txt = Attribute.name Ast_traverse.enter_value }
+      ; attr_payload = PStr [ pstr_eval ~loc (evar ~loc txt) [] ]
+      }
     in
-    case ~lhs:pattern ~guard:None ~rhs:(evar ~loc tmpvar)
-  in
-  let fn =
-    if assume_exhaustive
-    then pexp_function ~loc [ project_the_var ]
-    else
-      with_warning_attribute
-        "-11" (* unused case warning *)
-        (pexp_function ~loc [ project_the_var; catch_all_case ~loc ])
-  in
-  bind_apply ~op_name:Map.name ~loc ~modul ~with_location ~arg:exp ~fn
+    { expr with pexp_attributes = attr :: expr.pexp_attributes }
+  | [] | _ :: _ :: _ -> expr
 ;;
-
-let project_bound_vars ~loc ~modul ~with_location exp ~lhs =
-  let loc = { loc with loc_ghost = true } in
-  let variables = pattern_variables lhs.pat in
-  List.map variables ~f:(fun var ->
-    { txt =
-        (let expr = project_bound_var ~loc ~modul ~with_location exp ~pat:lhs var in
-         value_binding
-           ~loc
-           ~pat:(ppat_var ~loc:var.loc var)
-           ~expr:(Merlin_helpers.hide_expression expr))
-    ; loc
-    })
-;;
-
-let project_pattern_variables ~assume_exhaustive ~modul ~with_location vbs =
-  List.concat_map vbs ~f:(fun vb ->
-    let loc = { vb.pvb_loc with loc_ghost = true } in
-    project_bound_vars
-      ~loc
-      ~modul
-      ~with_location
-      vb.pvb_expr
-      ~lhs:{ pat = vb.pvb_pat; assume_exhaustive })
-;;
-
-let name_expr expr =
-  (* to avoid duplicating non-value expressions *)
-  match expr.pexp_desc with
-  | Pexp_ident _ -> [], expr
-  | _ ->
-    let loc = { expr.pexp_loc with loc_ghost = true } in
-    let var = gen_symbol ~prefix:"__pattern_syntax" () in
-    [ value_binding ~loc ~pat:(pvar ~loc var) ~expr ], evar ~loc var
-;;
-
-let case_number ~loc ~modul exp indexed_cases =
-  with_warning_attribute
-    "-26-27" (* unused variable warnings *)
-    (expand_match
-       (module Map)
-       ~extension_kind:Extension_kind.default
-       ~loc
-       ~modul
-       exp
-       (List.map indexed_cases ~f:(fun (idx, case) ->
-          { case with pc_rhs = eint ~loc idx })))
-;;
-
-let expand_case ~destruct expr (idx, match_case) =
-  let loc = { match_case.pc_lhs.ppat_loc with loc_ghost = true } in
-  let rhs =
-    destruct ~lhs:match_case.pc_lhs ~rhs:expr ~body:match_case.pc_rhs
-    |> Option.value
-         ~default:
-           (pexp_let
-              ~loc
-              Nonrecursive
-              [ value_binding ~loc ~pat:match_case.pc_lhs ~expr ]
-              match_case.pc_rhs)
-  in
-  case ~lhs:(pint ~loc idx) ~guard:None ~rhs
-;;
-
-let case_number_cases ~loc ~destruct exp indexed_cases =
-  List.map indexed_cases ~f:(expand_case ~destruct exp) @ [ catch_all_case ~loc ]
-;;
-
-let indexed_match ~loc ~modul ~destruct ~switch expr cases =
-  let expr_binding, expr = name_expr expr in
-  let indexed_cases = List.mapi cases ~f:(fun idx case -> idx, case) in
-  let case_number = case_number ~loc ~modul expr indexed_cases in
-  let assume_exhaustive = List.length cases <= 1 in
-  let destruct = destruct ~assume_exhaustive ~loc ~modul in
-  let case_number_cases = case_number_cases ~loc ~destruct expr indexed_cases in
-  pexp_let
-    ~loc
-    Nonrecursive
-    expr_binding
-    (switch ~loc ~modul case_number case_number_cases)
-;;
-
-module Sub : Ext = struct
-  let name = "sub"
-  let with_location = true
-
-  let disallow_expression _ = function
-    (* It is worse to use let%sub...and instead of multiple let%sub in a row,
-       so disallow it. *)
-    | Pexp_let (Nonrecursive, _ :: _ :: _, _) ->
-      Error "let%sub should not be used with 'and'."
-    | Pexp_while (_, _) -> Error "while%sub is not supported"
-    | _ -> Ok ()
-  ;;
-
-  let sub_return ~loc ~modul ~lhs ~rhs ~body =
-    let returned_rhs = qualified_return ~loc ~modul rhs in
-    bind_apply
-      ~op_name:name
-      ~loc
-      ~modul
-      ~with_location
-      ~arg:returned_rhs
-      ~fn:(pexp_fun Nolabel None ~loc lhs body)
-  ;;
-
-  let destruct ~assume_exhaustive ~loc ~modul ~lhs ~rhs ~body =
-    match lhs.ppat_desc with
-    | Ppat_var _ -> None
-    | _ ->
-      let bindings = [ value_binding ~loc ~pat:lhs ~expr:rhs ] in
-      let pattern_projections =
-        project_pattern_variables
-          ~assume_exhaustive
-          ~modul
-          ~with_location:Map.with_location
-          bindings
-      in
-      Some
-        (match pattern_projections with
-         (* We handle the special case of having no pattern projections (which
-            means there were no variables to be projected) by projecting the
-            whole pattern once, just to ensure that the expression being
-            projected matches the pattern. We only do this when the pattern is
-            exhaustive, because otherwise the pattern matching is already
-            happening inside the [switch] call. *)
-         | [] when assume_exhaustive ->
-           let projection_case = case ~lhs ~guard:None ~rhs:(eunit ~loc) in
-           let fn = pexp_function ~loc [ projection_case ] in
-           let rhs =
-             bind_apply
-               ~op_name:Map.name
-               ~loc
-               ~modul
-               ~with_location:Map.with_location
-               ~arg:rhs
-               ~fn
-           in
-           sub_return ~loc ~modul ~lhs:(ppat_any ~loc) ~rhs ~body
-         | _ ->
-           List.fold pattern_projections ~init:body ~f:(fun expr { txt = binding; loc } ->
-             sub_return ~loc ~modul ~lhs:binding.pvb_pat ~rhs:binding.pvb_expr ~body:expr))
-  ;;
-
-  let switch ~loc ~modul case_number case_number_cases =
-    Merlin_helpers.hide_expression
-      (pexp_apply
-         ~loc
-         (eoperator ~loc ~modul "switch")
-         [ Labelled "match_", case_number
-         ; Labelled "branches", eint ~loc (List.length case_number_cases - 1)
-         ; Labelled "with_", pexp_function ~loc case_number_cases
-         ])
-  ;;
-
-  let expand_match ~loc ~modul expr = function
-    | [] -> assert false
-    | [ (case : case) ] ->
-      let returned_expr = qualified_return ~loc ~modul expr in
-      let fn = maybe_destruct ~destruct ~loc ~modul ~lhs:case.pc_lhs ~body:case.pc_rhs in
-      bind_apply ~op_name:name ~loc ~modul ~with_location ~arg:returned_expr ~fn
-    | cases ->
-      let var_name = gen_symbol ~prefix:"__pattern_syntax" () in
-      let var_expression = evar ~loc var_name in
-      let var_pattern = pvar ~loc var_name in
-      let body = indexed_match ~loc ~modul ~destruct ~switch var_expression cases in
-      sub_return ~loc ~modul ~lhs:var_pattern ~rhs:expr ~body
-  ;;
-end
-
-module Arr : Ext = struct
-  let name = "arr"
-  let with_location = true
-
-  let disallow_expression _ = function
-    | Pexp_while (_, _) -> Error "while%%arr is not supported."
-    | _ -> Ok ()
-  ;;
-
-  let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
-
-  let expand_match ~loc ~modul expr cases =
-    bind_apply
-      ~loc
-      ~modul
-      ~with_location
-      ~op_name:name
-      ~arg:expr
-      ~fn:(pexp_function ~loc cases)
-  ;;
-end
 
 let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
@@ -591,13 +385,19 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
           { vb with
             pvb_pat
           ; pvb_expr =
-              maybe_open ~extension_kind ~to_open:(open_on_rhs ~modul) vb.pvb_expr
+              maybe_open
+                ~extension_kind
+                ~to_open:(open_on_rhs ~modul)
+                (maybe_enter_value pvb_pat vb.pvb_expr)
           })
       in
-      let f =
-        if extension_kind.collapse_binds
-        then expand_letn ext ~modul
-        else expand_let ext ~modul
+      let f ~loc value_bindings expression =
+        let expand =
+          if extension_kind.collapse_binds
+          then expand_letn ext ~modul
+          else expand_let ext ~modul
+        in
+        Ext.wrap_expansion ~loc ~modul value_bindings expression ~expand
       in
       expand_with_tmp_vars ~loc bindings expr ~f
     | Pexp_let (Recursive, _, _) ->
@@ -629,7 +429,5 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
   { expansion with pexp_attributes = expr.pexp_attributes @ expansion.pexp_attributes }
 ;;
 
-let sub = (module Sub : Ext)
 let map = (module Map : Ext)
 let bind = (module Bind : Ext)
-let arr = (module Arr : Ext)

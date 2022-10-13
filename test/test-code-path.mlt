@@ -1,0 +1,100 @@
+open Base
+open Stdio
+open Ppxlib
+open Ast_builder.Default
+open Monad.Ident.Let_syntax
+
+let () =
+  Driver.register_transformation
+    "code_path"
+    ~rules:
+      [ Context_free.Rule.extension
+          (Extension.V3.declare
+             "code_path"
+             Expression
+             Ast_pattern.(pstr nil)
+             (fun ~ctxt ->
+                estring
+                  ~loc:(Expansion_context.Extension.extension_point_loc ctxt)
+                  (Code_path.enclosing_value (Expansion_context.Extension.code_path ctxt)
+                   |> Option.value ~default:"_")))
+      ]
+;;
+
+let () =
+  let without_bind = [%code_path] in
+  let%bind with_bind = [%code_path] in
+  let%bind with_bind_and_left = [%code_path]
+  and with_bind_and_right = [%code_path] in
+  print_endline without_bind;
+  print_endline with_bind;
+  print_endline with_bind_and_left;
+  print_endline with_bind_and_right
+;;
+
+[%%expect {|
+without_bind
+with_bind
+with_bind_and_left
+with_bind_and_right
+|}]
+
+let () =
+  let without_bind_fst, without_bind_snd = [%code_path], [%code_path] in
+  let%bind with_bind_fst, with_bind_snd = [%code_path], [%code_path] in
+  print_endline without_bind_fst;
+  print_endline without_bind_snd;
+  print_endline with_bind_fst;
+  print_endline with_bind_snd
+;;
+
+[%%expect {|
+_
+_
+_
+_
+|}]
+
+let () =
+  let a, b = [%code_path], [%code_path]
+  and c = [%code_path] in
+  let%bind x, y = [%code_path], [%code_path]
+  and z = [%code_path] in
+  print_endline a;
+  print_endline b;
+  print_endline c;
+  print_endline x;
+  print_endline y;
+  print_endline z
+;;
+
+[%%expect {|
+_
+_
+c
+_
+_
+z
+|}]
+
+let () =
+  let without_bind_outer =
+    let without_bind_inner = [%code_path] in
+    print_endline without_bind_inner;
+    [%code_path]
+  in
+  print_endline without_bind_outer;
+  let%bind with_bind_outer =
+    let%bind with_bind_inner = [%code_path] in
+    print_endline with_bind_inner;
+    [%code_path]
+  in
+  print_endline with_bind_outer
+;;
+
+[%%expect {|
+without_bind_inner
+without_bind_outer
+with_bind_inner
+with_bind_outer
+|}]

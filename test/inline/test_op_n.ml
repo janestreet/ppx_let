@@ -42,8 +42,8 @@ let%expect_test "double pattern map" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__003_ = MY_EXPR_1
-    and __let_syntax__004_ = MY_EXPR_2 in
+    let __let_syntax__003_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__004_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ] in
     Let_syntax.map2 __let_syntax__003_ __let_syntax__004_
       ~f:(fun (MY_PAT_1) -> fun (MY_PAT_2) -> MY_BODY) |}]
 ;;
@@ -76,7 +76,9 @@ let%expect_test "double pattern map open" =
   [%expect
     {|
     let __let_syntax__008_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_1
-    and __let_syntax__009_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_2 in
+    [@@ppxlib.do_not_enter_value ]
+    and __let_syntax__009_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_2
+    [@@ppxlib.do_not_enter_value ] in
     Let_syntax.map2 __let_syntax__008_ __let_syntax__009_
       ~f:(fun (MY_PAT_1) -> fun (MY_PAT_2) -> MY_BODY) |}]
 ;;
@@ -95,10 +97,10 @@ let%expect_test "quadruple pattern map" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__012_ = MY_EXPR_1
-    and __let_syntax__013_ = MY_EXPR_2
-    and __let_syntax__014_ = MY_EXPR_3
-    and __let_syntax__015_ = MY_EXPR_4 in
+    let __let_syntax__012_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__013_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__014_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__015_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
     Let_syntax.map4 __let_syntax__012_ __let_syntax__013_ __let_syntax__014_
       __let_syntax__015_
       ~f:(fun (MY_PAT_1) ->
@@ -120,10 +122,10 @@ let%expect_test "quadruple pattern bind" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__020_ = MY_EXPR_1
-    and __let_syntax__021_ = MY_EXPR_2
-    and __let_syntax__022_ = MY_EXPR_3
-    and __let_syntax__023_ = MY_EXPR_4 in
+    let __let_syntax__020_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__021_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__022_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__023_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
     Let_syntax.bind4 __let_syntax__020_ __let_syntax__021_ __let_syntax__022_
       __let_syntax__023_
       ~f:(fun (MY_PAT_1) ->
