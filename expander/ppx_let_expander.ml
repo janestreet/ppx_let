@@ -370,7 +370,7 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
     | Pexp_let (Nonrecursive, bindings, expr) ->
       let bindings =
         List.map bindings ~f:(fun vb ->
-          let pvb_pat =
+          let pvb_pat, pvb_expr =
             (* Temporary hack tentatively detecting that the parser
                has expanded `let x : t = e` into `let x : t = (e : t)`.
 
@@ -379,8 +379,12 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
             match vb.pvb_pat.ppat_desc, vb.pvb_expr.pexp_desc with
             | ( Ppat_constraint (p, { ptyp_desc = Ptyp_poly ([], t1); _ })
               , Pexp_constraint (_, t2) )
-              when phys_equal t1 t2 || Poly.equal t1 t2 -> p
-            | _ -> vb.pvb_pat
+              when phys_equal t1 t2 || Poly.equal t1 t2 ->
+              ( p
+              , { vb.pvb_expr with
+                  pexp_loc = { vb.pvb_expr.pexp_loc with loc_ghost = true }
+                } )
+            | _ -> vb.pvb_pat, vb.pvb_expr
           in
           { vb with
             pvb_pat
@@ -388,7 +392,7 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
               maybe_open
                 ~extension_kind
                 ~to_open:(open_on_rhs ~modul)
-                (maybe_enter_value pvb_pat vb.pvb_expr)
+                (maybe_enter_value pvb_pat pvb_expr)
           })
       in
       let f ~loc value_bindings expression =
