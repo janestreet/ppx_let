@@ -59,6 +59,7 @@ module type Ext = sig
   val expand_match
     :  loc:location
     -> modul:longident loc option
+    -> locality:[ `local | `global ]
     -> expression
     -> case list
     -> expression
@@ -79,12 +80,43 @@ let wrap_expansion_identity ~loc ~modul:_ bindings expression ~expand =
   expand ~loc bindings expression
 ;;
 
+(* When generating [local_] binds, we need to avoid tail calls so that local allocations
+   can be released. Determining precisely when to annotate [@nontail] is finicky. Instead,
+   we wrap the whole expression in a [let] to force calls to be non-tail. *)
+let prevent_tail_calls ~loc expr =
+  let var = gen_symbol ~prefix:"__nontail" () in
+  pexp_let
+    ~loc
+    Nonrecursive
+    [ value_binding ~loc ~pat:(pvar ~loc var) ~expr ]
+    (evar ~loc var)
+;;
+
+(* Wrap an expression in , which is applied like a function. *)
+let wrap_local ~loc expr =
+  pexp_apply
+    ~loc
+    (pexp_extension ~loc ({ loc; txt = "ocaml.local" }, PStr []))
+    [ Nolabel, prevent_tail_calls ~loc expr ]
+;;
+
+let maybe_wrap_local ~loc ~locality expr =
+  match locality with
+  | `global -> expr
+  | `local -> wrap_local ~loc expr
+;;
+
 type t = (module Ext)
 
-let ext_full_name (module Ext : Ext) { Extension_kind.do_open; collapse_binds; _ } =
+let ext_full_name (module Ext : Ext) ~locality (kind : Extension_kind.t) =
   let result = Ext.name in
-  let result = if collapse_binds then String.concat [ result; "n" ] else result in
-  if do_open then String.concat [ result; "_open" ] else result
+  let result =
+    match locality with
+    | `local -> String.concat [ result; "l" ]
+    | `global -> result
+  in
+  let result = if kind.collapse_binds then String.concat [ result; "n" ] else result in
+  if kind.do_open then String.concat [ result; "_open" ] else result
 ;;
 
 let let_syntax = "Let_syntax"
@@ -153,16 +185,18 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
 ;;
 
-let maybe_destruct ~destruct ~loc ~modul ~lhs ~body =
+let maybe_destruct ~destruct ~loc ~modul ~locality ~lhs ~body =
   let whole_value_var = gen_symbol ~prefix:"__pattern_syntax" () in
   let whole_value_pattern = ppat_var ~loc { txt = whole_value_var; loc } in
   let whole_value_expr = pexp_ident ~loc { txt = Lident whole_value_var; loc } in
   match destruct ~assume_exhaustive:true ~loc ~modul ~lhs ~rhs:whole_value_expr ~body with
-  | Some destruction -> pexp_fun ~loc Nolabel None whole_value_pattern destruction
-  | None -> pexp_fun ~loc Nolabel None lhs body
+  | Some destruction ->
+    maybe_wrap_local ~loc ~locality destruction
+    |> pexp_fun ~loc Nolabel None whole_value_pattern
+  | None -> maybe_wrap_local ~loc ~locality body |> pexp_fun ~loc Nolabel None lhs
 ;;
 
-let expand_letn (module Ext : Ext) ~loc ~modul bindings body =
+let expand_letn (module Ext : Ext) ~loc ~modul ~locality bindings body =
   let n = List.length bindings in
   let operator =
     match n with
@@ -173,8 +207,17 @@ let expand_letn (module Ext : Ext) ~loc ~modul bindings body =
     bindings |> List.map ~f:(fun { pvb_expr; _ } -> Nolabel, pvb_expr)
   in
   let func =
-    List.fold_right bindings ~init:body ~f:(fun { pvb_pat; _ } lower ->
-      maybe_destruct ~destruct:Ext.destruct ~modul ~loc ~lhs:pvb_pat ~body:lower)
+    List.fold_right
+      bindings
+      ~init:(maybe_wrap_local ~loc ~locality body)
+      ~f:(fun { pvb_pat; _ } lower ->
+        maybe_destruct
+          ~destruct:Ext.destruct
+          ~modul
+          ~locality:`global
+          ~loc
+          ~lhs:pvb_pat
+          ~body:lower)
   in
   let args =
     bindings_args
@@ -186,15 +229,15 @@ let expand_letn (module Ext : Ext) ~loc ~modul bindings body =
   pexp_apply ~loc operator args
 ;;
 
-let maybe_open ~extension_kind ~to_open:module_to_open expr =
+let maybe_open ~(extension_kind : Extension_kind.t) ~to_open:module_to_open expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
-  if extension_kind.Extension_kind.do_open
+  if extension_kind.do_open
   then
     pexp_open ~loc (open_infos ~loc ~override:Override ~expr:(module_to_open ~loc)) expr
   else expr
 ;;
 
-let expand_let (module Ext : Ext) ~loc ~modul bindings body =
+let expand_let (module Ext : Ext) ~loc ~modul ~locality bindings body =
   if List.length bindings = 0
   then invalid_arg "expand_let: list of bindings must be non-empty";
   (* Build expression [both E1 (both E2 (both ...))] *)
@@ -221,7 +264,9 @@ let expand_let (module Ext : Ext) ~loc ~modul bindings body =
     in
     List.reduce_exn rev_patts ~f:(fun acc p -> ppat_tuple ~loc:tuple_loc [ p; acc ])
   in
-  let fn = maybe_destruct ~destruct:Ext.destruct ~loc ~modul ~lhs:nested_patterns ~body in
+  let fn =
+    maybe_destruct ~destruct:Ext.destruct ~loc ~modul ~locality ~lhs:nested_patterns ~body
+  in
   bind_apply
     ~op_name:Ext.name
     ~loc
@@ -232,24 +277,25 @@ let expand_let (module Ext : Ext) ~loc ~modul bindings body =
     ()
 ;;
 
-let expand_match (module Ext : Ext) ~extension_kind ~loc ~modul expr cases =
+let expand_match (module Ext : Ext) ~extension_kind ~loc ~modul ~locality expr cases =
   let expr = maybe_open ~extension_kind ~to_open:(open_on_rhs ~modul) expr in
-  Ext.expand_match ~loc ~modul expr cases
+  Ext.expand_match ~loc ~modul ~locality expr cases
 ;;
 
-let expand_if t ~extension_kind ~loc ~modul expr then_ else_ =
+let expand_if t ~extension_kind ~loc ~modul ~locality expr then_ else_ =
   expand_match
     t
     ~extension_kind
     ~loc
     ~modul
+    ~locality
     expr
     [ case ~lhs:(pbool ~loc true) ~guard:None ~rhs:then_
     ; case ~lhs:(pbool ~loc false) ~guard:None ~rhs:else_
     ]
 ;;
 
-let expand_while (module Ext : Ext) ~extension_kind ~loc ~modul ~cond ~body =
+let expand_while (module Ext : Ext) ~locality ~extension_kind ~loc ~modul ~cond ~body =
   let loop_name = gen_symbol ~prefix:"__let_syntax_loop" () in
   let ploop = pvar ~loc loop_name in
   let eloop = evar ~loc loop_name in
@@ -266,14 +312,25 @@ let expand_while (module Ext : Ext) ~extension_kind ~loc ~modul ~cond ~body =
         ()
     in
     let else_ = qualified_return ~loc ~modul (eunit ~loc) in
-    expand_if (module Ext) ~extension_kind ~modul ~loc cond then_ else_
+    expand_if (module Ext) ~extension_kind ~modul ~locality ~loc cond then_ else_
   in
+  let loop_body = maybe_wrap_local ~loc ~locality loop_body in
   let loop_func = pexp_fun ~loc Nolabel None (punit ~loc) loop_body in
   pexp_let
     ~loc
     Recursive
     [ do_not_enter_value (value_binding ~loc ~pat:ploop ~expr:loop_func) ]
     loop_call
+;;
+
+let expand_function ~loc ~locality cases =
+  match locality with
+  | `global -> pexp_function ~loc cases
+  | `local ->
+    let var = gen_symbol ~prefix:"__let_syntax" () in
+    pexp_match ~loc (evar ~loc var) cases
+    |> wrap_local ~loc
+    |> pexp_fun ~loc Nolabel None (pvar ~loc var)
 ;;
 
 module Map : Ext = struct
@@ -288,14 +345,14 @@ module Map : Ext = struct
 
   let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
 
-  let expand_match ~loc ~modul expr cases =
+  let expand_match ~loc ~modul ~locality expr cases =
     bind_apply
       ~loc
       ~modul
       ~with_location
       ~op_name:name
       ~arg:expr
-      ~fn:(pexp_function ~loc cases)
+      ~fn:(expand_function ~loc ~locality cases)
       ()
   ;;
 end
@@ -305,22 +362,22 @@ module Bind : Ext = struct
   let with_location = false
   let wrap_expansion = wrap_expansion_identity
 
-  let disallow_expression { Extension_kind.collapse_binds; _ } = function
-    | Pexp_while (_, _) when collapse_binds ->
+  let disallow_expression (extension_kind : Extension_kind.t) = function
+    | Pexp_while (_, _) when extension_kind.collapse_binds ->
       Error "while%%bindn is not supported. use while%%bind instead."
     | _ -> Ok ()
   ;;
 
   let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
 
-  let expand_match ~loc ~modul expr cases =
+  let expand_match ~loc ~modul ~locality expr cases =
     bind_apply
       ~loc
       ~modul
       ~with_location
       ~op_name:name
       ~arg:expr
-      ~fn:(pexp_function ~loc cases)
+      ~fn:(expand_function ~loc ~locality cases)
       ()
   ;;
 end
@@ -358,7 +415,7 @@ let maybe_enter_value pat expr =
   | [] | _ :: _ :: _ -> expr
 ;;
 
-let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
+let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   let expansion =
     let expr_desc =
@@ -398,37 +455,41 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul expr =
       let f ~loc value_bindings expression =
         let expand =
           if extension_kind.collapse_binds
-          then expand_letn ext ~modul
-          else expand_let ext ~modul
+          then expand_letn ext ~modul ~locality
+          else expand_let ext ~modul ~locality
         in
         Ext.wrap_expansion ~loc ~modul value_bindings expression ~expand
       in
       expand_with_tmp_vars ~loc bindings expr ~f
     | Pexp_let (Recursive, _, _) ->
-      let ext_full_name = ext_full_name ext extension_kind in
+      let ext_full_name = ext_full_name ext ~locality extension_kind in
       Location.raise_errorf ~loc "'let%%%s' may not be recursive" ext_full_name
-    | Pexp_match (expr, cases) -> expand_match ext ~extension_kind ~loc ~modul expr cases
+    | Pexp_match (expr, cases) ->
+      expand_match ext ~extension_kind ~loc ~modul ~locality expr cases
     | Pexp_function cases ->
       let temp_var = gen_symbol ~prefix:"__let_syntax" () in
       let temp_pattern = ppat_var ~loc { txt = temp_var; loc } in
       let temp_expr = pexp_ident ~loc { txt = Lident temp_var; loc } in
-      let match_expr = expand_match ext ~extension_kind ~loc ~modul temp_expr cases in
+      let match_expr =
+        expand_match ext ~extension_kind ~loc ~modul ~locality temp_expr cases
+      in
       pexp_fun ~loc Nolabel None temp_pattern match_expr
     | Pexp_ifthenelse (expr, then_, else_) ->
       let else_ =
         match else_ with
         | Some else_ -> else_
         | None ->
-          let ext_full_name = ext_full_name ext extension_kind in
+          let ext_full_name = ext_full_name ext ~locality extension_kind in
           Location.raise_errorf ~loc "'if%%%s' must include an else branch" ext_full_name
       in
-      expand_if ext ~extension_kind ~loc ~modul expr then_ else_
-    | Pexp_while (cond, body) -> expand_while ext ~extension_kind ~loc ~modul ~cond ~body
+      expand_if ext ~extension_kind ~loc ~modul ~locality expr then_ else_
+    | Pexp_while (cond, body) ->
+      expand_while ext ~extension_kind ~loc ~modul ~locality ~cond ~body
     | _ ->
       Location.raise_errorf
         ~loc
         "'%%%s' can only be used with 'let', 'match', 'while', and 'if'"
-        (ext_full_name ext extension_kind)
+        (ext_full_name ext ~locality extension_kind)
   in
   { expansion with pexp_attributes = expr.pexp_attributes @ expansion.pexp_attributes }
 ;;

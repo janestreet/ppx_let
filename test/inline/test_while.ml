@@ -1,27 +1,52 @@
 open Core
 open Ppxlib
 
+let all_localities = [ `global; `local ]
 let loc = Location.none
 let print_expr expr = Pprintast.string_of_expression expr |> print_string
 
+let expand extension kind ~modul expr =
+  List.iteri all_localities ~f:(fun i locality ->
+    if i > 0 then printf "----\n";
+    printf !"locality = %{sexp:[`local|`global]}:\n" locality;
+    Ppx_let_expander.expand extension kind ~modul ~locality expr |> print_expr;
+    printf "\n")
+;;
+
 let%expect_test "while%bind expansion" =
-  Ppx_let_expander.expand
+  expand
     Ppx_let_expander.bind
     Ppx_let_expander.Extension_kind.default
     ~modul:None
     [%expr
       while MY_CONDITION do
         MY_BODY
-      done]
-  |> print_expr;
+      done];
   [%expect
     {|
+    locality = global:
     let rec __let_syntax_loop__001_ () =
       Let_syntax.bind MY_CONDITION
         ~f:(function
             | true -> Let_syntax.bind MY_BODY ~f:__let_syntax_loop__001_
             | false -> Let_syntax.return ())[@@ppxlib.do_not_enter_value ] in
-    __let_syntax_loop__001_ () |}]
+    __let_syntax_loop__001_ ()
+    ----
+    locality = local:
+    let rec __let_syntax_loop__002_ () =
+      ([%ocaml.local ])
+        (let __nontail__005_ =
+           Let_syntax.bind MY_CONDITION
+             ~f:(fun __let_syntax__003_ ->
+                   ([%ocaml.local ])
+                     (let __nontail__004_ =
+                        match __let_syntax__003_ with
+                        | true ->
+                            Let_syntax.bind MY_BODY ~f:__let_syntax_loop__002_
+                        | false -> Let_syntax.return () in
+                      __nontail__004_)) in
+         __nontail__005_)[@@ppxlib.do_not_enter_value ] in
+    __let_syntax_loop__002_ () |}]
 ;;
 
 let%expect_test "while%bind trivial test" =

@@ -48,6 +48,7 @@ module type Ext = sig
   val expand_match
     :  loc:location
     -> modul:longident loc option
+    -> locality:[ `local | `global ]
     -> expression
     -> case list
     -> expression
@@ -76,7 +77,7 @@ val wrap_expansion_identity
 
 type t = (module Ext)
 
-val ext_full_name : t -> Extension_kind.t -> label
+val ext_full_name : t -> locality:[ `local | `global ] -> Extension_kind.t -> label
 val bind : t
 val map : t
 val variables_of : label loc list Ast_traverse.fold
@@ -93,6 +94,7 @@ val expand_match
   -> extension_kind:Extension_kind.t
   -> loc:location
   -> modul:longident loc option
+  -> locality:[ `local | `global ]
   -> expression
   -> case list
   -> expression
@@ -108,6 +110,7 @@ val maybe_destruct
         -> expression option)
   -> loc:location
   -> modul:'a
+  -> locality:[ `local | `global ]
   -> lhs:pattern
   -> body:expression
   -> expression
@@ -133,6 +136,7 @@ val expand
   :  t
   -> Extension_kind.t
   -> modul:longident loc option
+  -> locality:[ `local | `global ]
   -> expression
   -> expression
 

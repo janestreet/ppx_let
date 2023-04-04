@@ -237,3 +237,24 @@ staged manner where the operators used to construct the applicatives are
 distinct from the operators used to manipulate the values those applicatives
 produce. For monads, `Open_on_rhs` contains `return`.
 
+Local values
+------------
+
+`ppx_let` can operate on local values. This requires a compiler that supports the `local_`
+keyword and stack allocation, which as of 2023-03 is a nonstandard compiler extension.
+
+1. Use `%mapl` and `%bindl` instead of `%map` and `%bind`.
+
+2. Implement a `Let_syntax` module that matches the following
+   signature:
+
+    ```ocaml
+    module Let_syntax : sig
+      module Let_syntax : sig
+        val return : local_ 'a -> local_ 'a t
+        val map    : local_ 'a t -> f:local_ (local_ 'a -> local_ 'b) -> local_ 'b t
+        val both   : local_ 'a t -> local_ 'b t -> local_ ('a * 'b) t
+        module Open_on_rhs : << some signature >>
+      end
+    end
+    ```
