@@ -1,3 +1,9 @@
+## Release v0.16.0
+
+* Exposed more internals to allow other ppxes to build similar extensions of `let`.
+
+## Old pre-v0.15 changelogs (very likely stale and incomplete)
+
 ## git version
 
 - Support for `%map.A.B.C` syntax to use values from a specific module, rather
