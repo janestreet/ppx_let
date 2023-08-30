@@ -25,7 +25,7 @@ module Let_syntax : sig
       -> ('d t[@local])
       -> f:
            ((('a[@local]) -> ('b[@local]) -> ('c[@local]) -> ('d[@local]) -> ('e[@local]))
-            [@local])
+           [@local])
       -> ('e t[@local])
 
     val bind4
@@ -39,7 +39,7 @@ module Let_syntax : sig
              -> ('c[@local])
              -> ('d[@local])
              -> ('e t[@local]))
-            [@local])
+           [@local])
       -> ('e t[@local])
 
     module Open_on_rhs : sig end

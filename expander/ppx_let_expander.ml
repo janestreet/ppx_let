@@ -211,13 +211,13 @@ let expand_letn (module Ext : Ext) ~loc ~modul ~locality bindings body =
       bindings
       ~init:(maybe_wrap_local ~loc ~locality body)
       ~f:(fun { pvb_pat; _ } lower ->
-        maybe_destruct
-          ~destruct:Ext.destruct
-          ~modul
-          ~locality:`global
-          ~loc
-          ~lhs:pvb_pat
-          ~body:lower)
+      maybe_destruct
+        ~destruct:Ext.destruct
+        ~modul
+        ~locality:`global
+        ~loc
+        ~lhs:pvb_pat
+        ~body:lower)
   in
   let args =
     bindings_args

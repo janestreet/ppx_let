@@ -29,8 +29,8 @@ let%expect_test "while%bindl trivial test" =
     assert_zero_alloc (fun () ->
       
         (while%bindl.Local_option
-          incr i;
-          Some (!i <= 5)
+           incr i;
+           Some (!i <= 5)
          do
            Some ()
          done))

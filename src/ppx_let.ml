@@ -6,7 +6,7 @@ let ext t ~locality extension_kind =
     Extension.Context.expression
     Ast_pattern.(single_expr_payload __)
     (fun ~loc:_ ~path:_ ~arg expr ->
-       Ppx_let_expander.expand t extension_kind ~modul:arg ~locality expr)
+      Ppx_let_expander.expand t extension_kind ~modul:arg ~locality expr)
 ;;
 
 open Ppx_let_expander
