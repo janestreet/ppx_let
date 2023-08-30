@@ -1,37 +1,37 @@
 type 'a t = 'a option
 
-let return x =  (Some x)
+let return x = [%ocaml.local] (Some x)
 
 let map t ~f =
-  
+  [%ocaml.local]
     (match t with
      | None -> None
      | Some x -> Some (f x))
 ;;
 
 let bind t ~f =
-  
+  [%ocaml.local]
     (match t with
      | None -> None
      | Some x -> f x)
 ;;
 
 let both t1 t2 =
-  
+  [%ocaml.local]
     (match t1, t2 with
      | Some t1, Some t2 -> Some (t1, t2)
      | _ -> None)
 ;;
 
 let bind4 t1 t2 t3 t4 ~f =
-  
+  [%ocaml.local]
     (match t1, t2, t3, t4 with
      | Some t1, Some t2, Some t3, Some t4 -> f t1 t2 t3 t4
      | _ -> None)
 ;;
 
 let map4 t1 t2 t3 t4 ~f =
-  
+  [%ocaml.local]
     (match t1, t2, t3, t4 with
      | Some t1, Some t2, Some t3, Some t4 -> Some (f t1 t2 t3 t4)
      | _ -> None)

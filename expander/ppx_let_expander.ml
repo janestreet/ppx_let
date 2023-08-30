@@ -92,7 +92,7 @@ let prevent_tail_calls ~loc expr =
     (evar ~loc var)
 ;;
 
-(* Wrap an expression in , which is applied like a function. *)
+(* Wrap an expression in [%local], which is applied like a function. *)
 let wrap_local ~loc expr =
   pexp_apply
     ~loc

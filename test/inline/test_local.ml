@@ -8,7 +8,7 @@ let print_expr expr = Pprintast.string_of_expression expr |> print_string
    yet support local allocations. *)
 
 let assert_zero_alloc f =
-  
+  [%ocaml.local]
     (let allocations_before = Gc.major_plus_minor_words () in
      let r = f () in
      let allocations_after = Gc.major_plus_minor_words () in
@@ -27,7 +27,7 @@ let%expect_test "while%bindl trivial test" =
   let i = ref 0 in
   let (r : unit option) =
     assert_zero_alloc (fun () ->
-      
+      [%ocaml.local]
         (while%bindl.Local_option
            incr i;
            Some (!i <= 5)
@@ -80,12 +80,12 @@ let%expect_test "let%mapl expansion" =
               (let __nontail__008_ = return EXPRESSION3 in __nontail__008_)) |}]
 ;;
 
-let something_to_tail_call () =  (Some ())
+let something_to_tail_call () = [%ocaml.local] (Some ())
 
 let%expect_test "make sure let%bindl and let%mapl work well together" =
   let r : unit option option option =
     assert_zero_alloc (fun () ->
-      
+      [%ocaml.local]
         (match%bindl.Local_option Some () with
          | () ->
            let open Local_option.Let_syntax in
@@ -105,7 +105,7 @@ let%expect_test "make sure let%bindl and let%mapl work well together" =
 let%expect_test "bind4" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      
+      [%ocaml.local]
         (let%bindln.Local_option () = Some ()
          and () = Some ()
          and () = Some ()
@@ -118,7 +118,7 @@ let%expect_test "bind4" =
 let%expect_test "map4" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      
+      [%ocaml.local]
         (let%mapln.Local_option () = Some ()
          and () = Some ()
          and () = Some ()
@@ -131,7 +131,7 @@ let%expect_test "map4" =
 let%expect_test "match%bindl" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      
+      [%ocaml.local]
         (match%bindl.Local_option Some `hello with
          | `hello -> Some ()))
   in
@@ -141,7 +141,7 @@ let%expect_test "match%bindl" =
 let%expect_test "if%bindl" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      
+      [%ocaml.local]
         (if%bindl.Local_option Some true then Some () else failwith "impossible"))
   in
   check_some r [@nontail]
@@ -150,7 +150,7 @@ let%expect_test "if%bindl" =
 let%expect_test "if%mapl" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-       (if%mapl.Local_option Some true then () else failwith "impossible"))
+      [%ocaml.local] (if%mapl.Local_option Some true then () else failwith "impossible"))
   in
   check_some r [@nontail]
 ;;
