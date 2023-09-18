@@ -26,6 +26,25 @@ module type Ext = sig
   val name : string
   val with_location : bool
 
+  (* When true, prevent_tail_call will keep the resulting 
+     function application from being in tail position by introducing a local 
+     variable.  This is useful when working in with locals, and was added in order to 
+     allow ppx_bonsai to transform 
+
+     {[ 
+       let%sub a = foo in 
+       a
+     ]}
+
+     into 
+
+     {[ ((sub foo ~f:(fun a -> a))[@nontail]) ]}
+
+     instead of 
+
+     {[ sub foo ~f:(fun a -> a) ]} *)
+  val prevent_tail_call : bool
+
   (* Called before each expansion to ensure that the expression being expanded
      is supported. *)
   val disallow_expression : Extension_kind.t -> expression_desc -> (unit, string) Result.t
@@ -117,6 +136,7 @@ val maybe_destruct
 
 val bind_apply
   :  ?fn_label:string (** default: "f" *)
+  -> prevent_tail_call:bool
   -> op_name:label
   -> loc:location
   -> modul:longident loc option
@@ -141,3 +161,4 @@ val expand
   -> expression
 
 val do_not_enter_value : value_binding -> value_binding
+val nontail : loc:location -> expression -> expression

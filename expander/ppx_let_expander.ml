@@ -36,6 +36,7 @@ module type Ext = sig
      "bindn_open" - all of which start with "bind" *)
   val name : string
   val with_location : bool
+  val prevent_tail_call : bool
 
   (* Called before each expansion to ensure that the expression being expanded
      is supported. *)
@@ -142,13 +143,29 @@ let qualified_return ~loc ~modul expr =
 
 let location_arg ~loc = Labelled "here", Ppx_here_expander.lift_position ~loc
 
-let bind_apply ?(fn_label = "f") ~op_name ~loc ~modul ~with_location ~arg ~fn () =
+let nontail ~loc expr =
+  let attr = attribute ~loc ~name:{ txt = "nontail"; loc } ~payload:(PStr []) in
+  { expr with pexp_attributes = attr :: expr.pexp_attributes }
+;;
+
+let bind_apply
+  ?(fn_label = "f")
+  ~prevent_tail_call
+  ~op_name
+  ~loc
+  ~modul
+  ~with_location
+  ~arg
+  ~fn
+  ()
+  =
   let args =
     if with_location
     then [ location_arg ~loc; Nolabel, arg; Labelled fn_label, fn ]
     else [ Nolabel, arg; Labelled fn_label, fn ]
   in
-  pexp_apply ~loc (eoperator ~loc ~modul op_name) args
+  let expr = pexp_apply ~loc (eoperator ~loc ~modul op_name) args in
+  if prevent_tail_call then nontail ~loc expr else expr
 ;;
 
 let do_not_enter_value vb =
@@ -309,6 +326,7 @@ let expand_while (module Ext : Ext) ~locality ~extension_kind ~loc ~modul ~cond 
         ~with_location:Ext.with_location
         ~arg:body
         ~fn:eloop
+        ~prevent_tail_call:Ext.prevent_tail_call
         ()
     in
     let else_ = qualified_return ~loc ~modul (eunit ~loc) in
@@ -337,6 +355,7 @@ module Map : Ext = struct
   let name = "map"
   let with_location = false
   let wrap_expansion = wrap_expansion_identity
+  let prevent_tail_call = false
 
   let disallow_expression _ = function
     | Pexp_while (_, _) -> Error "while%%map is not supported. use while%%bind instead."
@@ -353,6 +372,7 @@ module Map : Ext = struct
       ~op_name:name
       ~arg:expr
       ~fn:(expand_function ~loc ~locality cases)
+      ~prevent_tail_call
       ()
   ;;
 end
@@ -361,6 +381,7 @@ module Bind : Ext = struct
   let name = "bind"
   let with_location = false
   let wrap_expansion = wrap_expansion_identity
+  let prevent_tail_call = false
 
   let disallow_expression (extension_kind : Extension_kind.t) = function
     | Pexp_while (_, _) when extension_kind.collapse_binds ->
@@ -378,6 +399,7 @@ module Bind : Ext = struct
       ~op_name:name
       ~arg:expr
       ~fn:(expand_function ~loc ~locality cases)
+      ~prevent_tail_call
       ()
   ;;
 end
@@ -456,7 +478,7 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
         let expand =
           if extension_kind.collapse_binds
           then expand_letn ext ~modul ~locality
-          else expand_let ext ~modul ~locality
+          else expand_let ext ~modul ~locality ~prevent_tail_call:Ext.prevent_tail_call
         in
         Ext.wrap_expansion ~loc ~modul value_bindings expression ~expand
       in
