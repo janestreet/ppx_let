@@ -93,13 +93,8 @@ let prevent_tail_calls ~loc expr =
     (evar ~loc var)
 ;;
 
-(* Wrap an expression in , which is applied like a function. *)
-let wrap_local ~loc expr =
-  pexp_apply
-    ~loc
-    (pexp_extension ~loc ({ loc; txt = "ocaml.local" }, PStr []))
-    [ Nolabel, prevent_tail_calls ~loc expr ]
-;;
+(* Wrap an expression in [local_] *)
+let wrap_local ~loc expr = [%expr  [%e prevent_tail_calls ~loc expr]]
 
 let maybe_wrap_local ~loc ~locality expr =
   match locality with
