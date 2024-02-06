@@ -28,8 +28,7 @@ let%expect_test "single pattern map" =
     ----
     locality = local:
     Let_syntax.map MY_EXPR
-      ~f:(fun (MY_PAT) ->
-            ([%ocaml.local ]) (let __nontail__002_ = MY_BODY in __nontail__002_)) |}]
+      ~f:(fun (MY_PAT) -> local_ let __nontail__002_ = MY_BODY in __nontail__002_) |}]
 ;;
 
 let%expect_test "single pattern map with modul" =
@@ -47,8 +46,7 @@ let%expect_test "single pattern map with modul" =
     ----
     locality = local:
     X.Let_syntax.Let_syntax.map MY_EXPR
-      ~f:(fun (MY_PAT) ->
-            ([%ocaml.local ]) (let __nontail__005_ = MY_BODY in __nontail__005_)) |}]
+      ~f:(fun (MY_PAT) -> local_ let __nontail__005_ = MY_BODY in __nontail__005_) |}]
 ;;
 
 let%expect_test "double pattern map" =
@@ -73,7 +71,7 @@ let%expect_test "double pattern map" =
     and __let_syntax__012_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ] in
     Let_syntax.map2 __let_syntax__011_ __let_syntax__012_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) ->
-            ([%ocaml.local ]) (let __nontail__013_ = MY_BODY in __nontail__013_)) |}]
+            local_ let __nontail__013_ = MY_BODY in __nontail__013_) |}]
 ;;
 
 let%expect_test "single pattern map open" =
@@ -93,7 +91,7 @@ let%expect_test "single pattern map open" =
     locality = local:
     Let_syntax.map (let open! Let_syntax.Open_on_rhs in MY_EXPR_1)
       ~f:(fun (MY_PAT_1) ->
-            ([%ocaml.local ]) (let __nontail__017_ = MY_BODY in __nontail__017_)) |}]
+            local_ let __nontail__017_ = MY_BODY in __nontail__017_) |}]
 ;;
 
 let%expect_test "double pattern map open" =
@@ -122,7 +120,7 @@ let%expect_test "double pattern map open" =
     [@@ppxlib.do_not_enter_value ] in
     Let_syntax.map2 __let_syntax__023_ __let_syntax__024_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) ->
-            ([%ocaml.local ]) (let __nontail__025_ = MY_BODY in __nontail__025_)) |}]
+            local_ let __nontail__025_ = MY_BODY in __nontail__025_) |}]
 ;;
 
 let%expect_test "quadruple pattern map" =
@@ -156,7 +154,7 @@ let%expect_test "quadruple pattern map" =
     Let_syntax.map4 __let_syntax__036_ __let_syntax__037_ __let_syntax__038_
       __let_syntax__039_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) (SUB_PATTERN_1, SUB_PATTERN_2) (MY_PAT_4) ->
-            ([%ocaml.local ]) (let __nontail__040_ = MY_BODY in __nontail__040_)) |}]
+            local_ let __nontail__040_ = MY_BODY in __nontail__040_) |}]
 ;;
 
 let%expect_test "quadruple pattern bind" =
@@ -190,5 +188,5 @@ let%expect_test "quadruple pattern bind" =
     Let_syntax.bind4 __let_syntax__053_ __let_syntax__054_ __let_syntax__055_
       __let_syntax__056_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) (SUB_PATTERN_1, SUB_PATTERN_2) (MY_PAT_4) ->
-            ([%ocaml.local ]) (let __nontail__057_ = MY_BODY in __nontail__057_)) |}]
+            local_ let __nontail__057_ = MY_BODY in __nontail__057_) |}]
 ;;

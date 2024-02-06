@@ -34,18 +34,17 @@ let%expect_test "while%bind expansion" =
     ----
     locality = local:
     let rec __let_syntax_loop__002_ () =
-      ([%ocaml.local ])
-        (let __nontail__005_ =
-           Let_syntax.bind MY_CONDITION
-             ~f:(fun __let_syntax__003_ ->
-                   ([%ocaml.local ])
-                     (let __nontail__004_ =
-                        match __let_syntax__003_ with
-                        | true ->
-                            Let_syntax.bind MY_BODY ~f:__let_syntax_loop__002_
-                        | false -> Let_syntax.return () in
-                      __nontail__004_)) in
-         __nontail__005_)[@@ppxlib.do_not_enter_value ] in
+      local_ let __nontail__005_ =
+               Let_syntax.bind MY_CONDITION
+                 ~f:(fun __let_syntax__003_ ->
+                       local_ let __nontail__004_ =
+                                match __let_syntax__003_ with
+                                | true ->
+                                    Let_syntax.bind MY_BODY
+                                      ~f:__let_syntax_loop__002_
+                                | false -> Let_syntax.return () in
+                              __nontail__004_) in
+             __nontail__005_[@@ppxlib.do_not_enter_value ] in
     __let_syntax_loop__002_ () |}]
 ;;
 

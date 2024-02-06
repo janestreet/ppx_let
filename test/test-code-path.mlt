@@ -32,7 +32,8 @@ let () =
   print_endline with_bind_and_right
 ;;
 
-[%%expect {|
+[%%expect
+  {|
 without_bind
 with_bind
 with_bind_and_left
@@ -48,7 +49,8 @@ let () =
   print_endline with_bind_snd
 ;;
 
-[%%expect {|
+[%%expect
+  {|
 _
 _
 _
@@ -68,7 +70,8 @@ let () =
   print_endline z
 ;;
 
-[%%expect {|
+[%%expect
+  {|
 _
 _
 c
@@ -92,7 +95,8 @@ let () =
   print_endline with_bind_outer
 ;;
 
-[%%expect {|
+[%%expect
+  {|
 without_bind_inner
 without_bind_outer
 with_bind_inner

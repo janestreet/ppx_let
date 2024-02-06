@@ -1,3 +1,6 @@
-(library (name ppx_let_expander) (public_name ppx_let.expander)
+(library
+ (name ppx_let_expander)
+ (public_name ppx_let.expander)
  (libraries base ppxlib ppx_here.expander)
- (preprocess (pps ppxlib.metaquot)))
+ (preprocess
+  (pps ppxlib.metaquot)))

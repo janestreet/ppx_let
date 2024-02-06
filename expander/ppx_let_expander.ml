@@ -94,7 +94,7 @@ let prevent_tail_calls ~loc expr =
 ;;
 
 (* Wrap an expression in [local_] *)
-let wrap_local ~loc expr = [%expr  [%e prevent_tail_calls ~loc expr]]
+let wrap_local ~loc expr = [%expr [%e prevent_tail_calls ~loc expr]]
 
 let maybe_wrap_local ~loc ~locality expr =
   match locality with
