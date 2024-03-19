@@ -45,7 +45,8 @@ let%expect_test "while%bind expansion" =
                                 | false -> Let_syntax.return () in
                               __nontail__004_) in
              __nontail__005_[@@ppxlib.do_not_enter_value ] in
-    __let_syntax_loop__002_ () |}]
+    __let_syntax_loop__002_ ()
+    |}]
 ;;
 
 let%expect_test "while%bind trivial test" =
@@ -61,7 +62,8 @@ let%expect_test "while%bind trivial test" =
     2
     3
     4
-    5 |}]
+    5
+    |}]
 ;;
 
 let%expect_test "monadic use" =
@@ -86,7 +88,8 @@ let%expect_test "monadic use" =
     1
     2
     3
-    (Ok ()) |}];
+    (Ok ())
+    |}];
   t 10;
   [%expect {|
     1
@@ -94,5 +97,6 @@ let%expect_test "monadic use" =
     3
     4
     5
-    (Error "too big") |}]
+    (Error "too big")
+    |}]
 ;;

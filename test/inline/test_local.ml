@@ -53,7 +53,8 @@ let%expect_test "let%bindl expansion" =
     and __let_syntax__002_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
     Let_syntax.bind (Let_syntax.both __let_syntax__001_ __let_syntax__002_)
       ~f:(fun (PATTERN1, PATTERN2) ->
-            local_ let __nontail__004_ = return EXPRESSION3 in __nontail__004_) |}]
+            local_ let __nontail__004_ = return EXPRESSION3 in __nontail__004_)
+    |}]
 ;;
 
 let%expect_test "let%mapl expansion" =
@@ -73,7 +74,8 @@ let%expect_test "let%mapl expansion" =
     and __let_syntax__006_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
     Let_syntax.map (Let_syntax.both __let_syntax__005_ __let_syntax__006_)
       ~f:(fun (PATTERN1, PATTERN2) ->
-            local_ let __nontail__008_ = return EXPRESSION3 in __nontail__008_) |}]
+            local_ let __nontail__008_ = return EXPRESSION3 in __nontail__008_)
+    |}]
 ;;
 
 let something_to_tail_call () = Some ()
