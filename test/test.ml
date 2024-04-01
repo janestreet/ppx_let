@@ -232,5 +232,10 @@ let () =
     and lhs_a', lhs_b', lhs_c' = tuple in
     return (lhs_a, lhs_b, lhs_c, lhs_a', lhs_b', lhs_c')
   in
+  let (_ : _) =
+    (* Body is a function *)
+    let%map lhs_a, lhs_b, lhs_c = tuple in
+    fun () -> lhs_c, lhs_b, lhs_a
+  in
   ()
 ;;
