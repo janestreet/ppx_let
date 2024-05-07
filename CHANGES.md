@@ -1,3 +1,8 @@
+## Release v0.17.0
+
+* Introduce a mechanism by which to prevent the PPX from inserting a function call in tail position. This is necessary as a result of the current implementation of local allocations.
+
+
 ## Release v0.16.0
 
 * Exposed more internals to allow other ppxes to build similar extensions of `let`.
