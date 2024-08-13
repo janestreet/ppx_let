@@ -19,28 +19,43 @@ module Extension_kind : sig
   val n_open : t
 end
 
+module With_location : sig
+  (** [With_location.t] specifies whether or not ppx_let should
+      provide a "location" ~here parameter. e.g. taking as an example
+      the made up [let%foo PAT = EXPR in BODY].
+
+      - [No_location] will just call [foo EXPR ~f:(fun PAT -> BODY)]
+      - [Location_of_callsite] will call [foo ~here:[%here] EXPR ~f:(fun PAT -> BODY)]
+      - [Location_in_scope "there"] will call [foo ~here:there EXPR ~f:(fun PAT -> BODY)]
+  *)
+  type t =
+    | No_location
+    | Location_of_callsite
+    | Location_in_scope of string
+end
+
 module type Ext = sig
   (* The base string of all the related extensions. For example, if the value
      is "bind", then other extensions will include "bind_open", "bindn", and
      "bindn_open" - all of which start with "bind" *)
   val name : string
-  val with_location : bool
+  val with_location : With_location.t
 
-  (* When true, prevent_tail_call will keep the resulting 
-     function application from being in tail position by introducing a local 
-     variable.  This is useful when working in with locals, and was added in order to 
-     allow ppx_bonsai to transform 
+  (* When true, prevent_tail_call will keep the resulting
+     function application from being in tail position by introducing a local
+     variable.  This is useful when working in with locals, and was added in order to
+     allow ppx_bonsai to transform
 
-     {[ 
-       let%sub a = foo in 
+     {[
+       let%sub a = foo in
        a
      ]}
 
-     into 
+     into
 
      {[ ((sub foo ~f:(fun a -> a))[@nontail]) ]}
 
-     instead of 
+     instead of
 
      {[ sub foo ~f:(fun a -> a) ]} *)
   val prevent_tail_call : bool
@@ -103,7 +118,7 @@ val variables_of : label loc list Ast_traverse.fold
 
 module Map : sig
   val name : string
-  val with_location : bool
+  val with_location : With_location.t
 end
 
 val eoperator : loc:location -> modul:longident loc option -> label -> expression
@@ -140,7 +155,7 @@ val bind_apply
   -> op_name:label
   -> loc:location
   -> modul:longident loc option
-  -> with_location:bool
+  -> with_location:With_location.t
   -> arg:expression
   -> fn:expression
   -> unit
@@ -162,3 +177,5 @@ val expand
 
 val do_not_enter_value : value_binding -> value_binding
 val nontail : loc:location -> expression -> expression
+val location_arg_in_scope : loc:location -> label -> arg_label * expression
+val location_arg : loc:location -> arg_label * expression

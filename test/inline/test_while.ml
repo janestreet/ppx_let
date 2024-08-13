@@ -34,17 +34,14 @@ let%expect_test "while%bind expansion" =
     ----
     locality = local:
     let rec __let_syntax_loop__002_ () =
-      local_ let __nontail__005_ =
-               Let_syntax.bind MY_CONDITION
+      exclave_ Let_syntax.bind MY_CONDITION
                  ~f:(fun __let_syntax__003_ ->
-                       local_ let __nontail__004_ =
-                                match __let_syntax__003_ with
+                       exclave_ match __let_syntax__003_ with
                                 | true ->
                                     Let_syntax.bind MY_BODY
                                       ~f:__let_syntax_loop__002_
-                                | false -> Let_syntax.return () in
-                              __nontail__004_) in
-             __nontail__005_[@@ppxlib.do_not_enter_value ] in
+                                | false -> Let_syntax.return ())[@@ppxlib.do_not_enter_value
+                                                                  ] in
     __let_syntax_loop__002_ ()
     |}]
 ;;
@@ -57,7 +54,8 @@ let%expect_test "while%bind trivial test" =
   do
     printf "%d\n" !i
   done;
-  [%expect {|
+  [%expect
+    {|
     1
     2
     3
@@ -84,14 +82,16 @@ let%expect_test "monadic use" =
     print_s [%sexp (result : unit Or_error.t)]
   in
   t 3;
-  [%expect {|
+  [%expect
+    {|
     1
     2
     3
     (Ok ())
     |}];
   t 10;
-  [%expect {|
+  [%expect
+    {|
     1
     2
     3

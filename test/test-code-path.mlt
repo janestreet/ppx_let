@@ -14,10 +14,10 @@ let () =
              Expression
              Ast_pattern.(pstr nil)
              (fun ~ctxt ->
-                estring
-                  ~loc:(Expansion_context.Extension.extension_point_loc ctxt)
-                  (Code_path.enclosing_value (Expansion_context.Extension.code_path ctxt)
-                   |> Option.value ~default:"_")))
+               estring
+                 ~loc:(Expansion_context.Extension.extension_point_loc ctxt)
+                 (Code_path.enclosing_value (Expansion_context.Extension.code_path ctxt)
+                  |> Option.value ~default:"_")))
       ]
 ;;
 

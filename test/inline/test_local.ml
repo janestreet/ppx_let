@@ -52,8 +52,7 @@ let%expect_test "let%bindl expansion" =
     let __let_syntax__001_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
     and __let_syntax__002_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
     Let_syntax.bind (Let_syntax.both __let_syntax__001_ __let_syntax__002_)
-      ~f:(fun (PATTERN1, PATTERN2) ->
-            local_ let __nontail__004_ = return EXPRESSION3 in __nontail__004_)
+      ~f:(fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3)
     |}]
 ;;
 
@@ -70,11 +69,10 @@ let%expect_test "let%mapl expansion" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__005_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__006_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map (Let_syntax.both __let_syntax__005_ __let_syntax__006_)
-      ~f:(fun (PATTERN1, PATTERN2) ->
-            local_ let __nontail__008_ = return EXPRESSION3 in __nontail__008_)
+    let __let_syntax__004_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__005_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.map (Let_syntax.both __let_syntax__004_ __let_syntax__005_)
+      ~f:(fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3)
     |}]
 ;;
 

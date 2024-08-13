@@ -1,0 +1,52 @@
+#print_line_numbers true
+
+open Base
+open Stdio
+open Ppxlib
+open Ppx_let_expander
+open Ast_builder.Default
+open Monad.Ident.Let_syntax
+
+let ext t =
+  let extension_kind = Extension_kind.default in
+  let locality = `global in
+  Extension.declare_with_path_arg
+    (ext_full_name t ~locality extension_kind)
+    Extension.Context.expression
+    Ast_pattern.(single_expr_payload __)
+    (fun ~loc:_ ~path:_ ~arg expr -> expand t extension_kind ~locality ~modul:arg expr)
+;;
+
+let () =
+  Driver.register_transformation
+    "test_ppx"
+    ~extensions:
+      [ ext
+          (module struct
+            include (val Ppx_let_expander.map)
+
+            let name = "foo"
+
+            let with_location =
+              Ppx_let_expander.With_location.Location_in_scope "over_there"
+            ;;
+          end)
+      ]
+;;
+
+module Let_syntax = struct
+  let foo ~here:_ x ~f = f x
+end
+
+let _ : _ =
+  let%foo () = () in
+  ()
+;;
+
+(* This test solely shows the location that is shown if a value is not bound and that it
+   points to a relevant location. *)
+[%%expect
+  {|
+Line 42, characters 2-25:
+Error: Unbound value over_there
+|}]

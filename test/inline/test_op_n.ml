@@ -27,8 +27,7 @@ let%expect_test "single pattern map" =
     Let_syntax.map MY_EXPR ~f:(fun (MY_PAT) -> MY_BODY)
     ----
     locality = local:
-    Let_syntax.map MY_EXPR
-      ~f:(fun (MY_PAT) -> local_ let __nontail__002_ = MY_BODY in __nontail__002_)
+    Let_syntax.map MY_EXPR ~f:(fun (MY_PAT) -> exclave_ MY_BODY)
     |}]
 ;;
 
@@ -46,8 +45,7 @@ let%expect_test "single pattern map with modul" =
     X.Let_syntax.Let_syntax.map MY_EXPR ~f:(fun (MY_PAT) -> MY_BODY)
     ----
     locality = local:
-    X.Let_syntax.Let_syntax.map MY_EXPR
-      ~f:(fun (MY_PAT) -> local_ let __nontail__005_ = MY_BODY in __nontail__005_)
+    X.Let_syntax.Let_syntax.map MY_EXPR ~f:(fun (MY_PAT) -> exclave_ MY_BODY)
     |}]
 ;;
 
@@ -63,17 +61,16 @@ let%expect_test "double pattern map" =
   [%expect
     {|
     locality = global:
-    let __let_syntax__007_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__008_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map2 __let_syntax__007_ __let_syntax__008_
+    let __let_syntax__005_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__006_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.map2 __let_syntax__005_ __let_syntax__006_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) -> MY_BODY)
     ----
     locality = local:
-    let __let_syntax__011_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__012_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map2 __let_syntax__011_ __let_syntax__012_
-      ~f:(fun (MY_PAT_1) (MY_PAT_2) ->
-            local_ let __nontail__013_ = MY_BODY in __nontail__013_)
+    let __let_syntax__009_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__010_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.map2 __let_syntax__009_ __let_syntax__010_
+      ~f:(fun (MY_PAT_1) (MY_PAT_2) -> exclave_ MY_BODY)
     |}]
 ;;
 
@@ -93,8 +90,7 @@ let%expect_test "single pattern map open" =
     ----
     locality = local:
     Let_syntax.map (let open! Let_syntax.Open_on_rhs in MY_EXPR_1)
-      ~f:(fun (MY_PAT_1) ->
-            local_ let __nontail__017_ = MY_BODY in __nontail__017_)
+      ~f:(fun (MY_PAT_1) -> exclave_ MY_BODY)
     |}]
 ;;
 
@@ -110,21 +106,20 @@ let%expect_test "double pattern map open" =
   [%expect
     {|
     locality = global:
+    let __let_syntax__015_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_1
+    [@@ppxlib.do_not_enter_value ]
+    and __let_syntax__016_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_2
+    [@@ppxlib.do_not_enter_value ] in
+    Let_syntax.map2 __let_syntax__015_ __let_syntax__016_
+      ~f:(fun (MY_PAT_1) (MY_PAT_2) -> MY_BODY)
+    ----
+    locality = local:
     let __let_syntax__019_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_1
     [@@ppxlib.do_not_enter_value ]
     and __let_syntax__020_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_2
     [@@ppxlib.do_not_enter_value ] in
     Let_syntax.map2 __let_syntax__019_ __let_syntax__020_
-      ~f:(fun (MY_PAT_1) (MY_PAT_2) -> MY_BODY)
-    ----
-    locality = local:
-    let __let_syntax__023_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_1
-    [@@ppxlib.do_not_enter_value ]
-    and __let_syntax__024_ = let open! Let_syntax.Open_on_rhs in MY_EXPR_2
-    [@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map2 __let_syntax__023_ __let_syntax__024_
-      ~f:(fun (MY_PAT_1) (MY_PAT_2) ->
-            local_ let __nontail__025_ = MY_BODY in __nontail__025_)
+      ~f:(fun (MY_PAT_1) (MY_PAT_2) -> exclave_ MY_BODY)
     |}]
 ;;
 
@@ -142,24 +137,24 @@ let%expect_test "quadruple pattern map" =
   [%expect
     {|
     locality = global:
-    let __let_syntax__028_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__029_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__030_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__031_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map4 __let_syntax__028_ __let_syntax__029_ __let_syntax__030_
-      __let_syntax__031_
+    let __let_syntax__023_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__024_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__025_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__026_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.map4 __let_syntax__023_ __let_syntax__024_ __let_syntax__025_
+      __let_syntax__026_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) (SUB_PATTERN_1, SUB_PATTERN_2) (MY_PAT_4) ->
             MY_BODY)
     ----
     locality = local:
-    let __let_syntax__036_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__037_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__038_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__039_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map4 __let_syntax__036_ __let_syntax__037_ __let_syntax__038_
-      __let_syntax__039_
+    let __let_syntax__031_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__032_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__033_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__034_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.map4 __let_syntax__031_ __let_syntax__032_ __let_syntax__033_
+      __let_syntax__034_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) (SUB_PATTERN_1, SUB_PATTERN_2) (MY_PAT_4) ->
-            local_ let __nontail__040_ = MY_BODY in __nontail__040_)
+            exclave_ MY_BODY)
     |}]
 ;;
 
@@ -177,23 +172,23 @@ let%expect_test "quadruple pattern bind" =
   [%expect
     {|
     locality = global:
-    let __let_syntax__045_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__046_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__047_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__048_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.bind4 __let_syntax__045_ __let_syntax__046_ __let_syntax__047_
-      __let_syntax__048_
+    let __let_syntax__039_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__040_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__041_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__042_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.bind4 __let_syntax__039_ __let_syntax__040_ __let_syntax__041_
+      __let_syntax__042_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) (SUB_PATTERN_1, SUB_PATTERN_2) (MY_PAT_4) ->
             MY_BODY)
     ----
     locality = local:
-    let __let_syntax__053_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__054_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__055_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__056_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.bind4 __let_syntax__053_ __let_syntax__054_ __let_syntax__055_
-      __let_syntax__056_
+    let __let_syntax__047_ = MY_EXPR_1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__048_ = MY_EXPR_2[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__049_ = MY_EXPR_3[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__050_ = MY_EXPR_4[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.bind4 __let_syntax__047_ __let_syntax__048_ __let_syntax__049_
+      __let_syntax__050_
       ~f:(fun (MY_PAT_1) (MY_PAT_2) (SUB_PATTERN_1, SUB_PATTERN_2) (MY_PAT_4) ->
-            local_ let __nontail__057_ = MY_BODY in __nontail__057_)
+            exclave_ MY_BODY)
     |}]
 ;;
