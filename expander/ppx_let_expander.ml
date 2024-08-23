@@ -30,6 +30,23 @@ module Extension_kind = struct
   let n_open = { do_open = true; collapse_binds = true }
 end
 
+module Locality = struct
+  type t =
+    { allocate_function_on_stack : bool
+    ; return_value_in_exclave : bool
+    }
+
+  let global = { allocate_function_on_stack = false; return_value_in_exclave = false }
+
+  let all =
+    List.Cartesian_product.map2
+      Bool.all
+      Bool.all
+      ~f:(fun allocate_function_on_stack return_value_in_exclave ->
+        { allocate_function_on_stack; return_value_in_exclave })
+  ;;
+end
+
 module With_location = struct
   type t =
     | No_location
@@ -67,7 +84,7 @@ module type Ext = sig
   val expand_match
     :  loc:location
     -> modul:longident loc option
-    -> locality:[ `local | `global ]
+    -> locality:Locality.t
     -> expression
     -> case list
     -> expression
@@ -89,25 +106,32 @@ let wrap_expansion_identity ~loc ~modul:_ bindings expression ~expand =
 ;;
 
 (* Wrap a function body in [exclave_] *)
-let wrap_exclave ~loc expr = [%expr [%e expr]]
+let wrap_exclave ~loc expr = [%expr exclave_ [%e expr]]
 
-let maybe_wrap_exclave ~loc ~locality expr =
-  match locality with
-  | `global -> expr
-  | `local -> wrap_exclave ~loc expr
+let maybe_wrap_exclave ~loc ~return_value_in_exclave expr =
+  match return_value_in_exclave with
+  | false -> expr
+  | true -> wrap_exclave ~loc expr
+;;
+
+let maybe_wrap_local ~loc ~allocate_function_on_stack func =
+  if allocate_function_on_stack then [%expr local_ [%e func]] else func
 ;;
 
 type t = (module Ext)
 
-let ext_full_name (module Ext : Ext) ~locality (kind : Extension_kind.t) =
-  let result = Ext.name in
-  let result =
-    match locality with
-    | `local -> String.concat [ result; "l" ]
-    | `global -> result
-  in
-  let result = if kind.collapse_binds then String.concat [ result; "n" ] else result in
-  if kind.do_open then String.concat [ result; "_open" ] else result
+let ext_full_name (module Ext : Ext) ~(locality : Locality.t) (kind : Extension_kind.t) =
+  let { allocate_function_on_stack; return_value_in_exclave } : Locality.t = locality in
+  String.concat
+    [ Ext.name
+    ; (if kind.collapse_binds then "n" else "")
+    ; (match allocate_function_on_stack, return_value_in_exclave with
+       | true, true -> "l" (* "local" *)
+       | true, false -> "l_fun" (* "local function" *)
+       | false, true -> "l_val" (* "local value" *)
+       | false, false -> "")
+    ; (if kind.do_open then "_open" else "")
+    ]
 ;;
 
 let let_syntax = "Let_syntax"
@@ -195,18 +219,27 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
 ;;
 
-let maybe_destruct ~destruct ~loc ~modul ~locality ~lhs ~body =
+let maybe_destruct ~destruct ~loc ~modul ~return_value_in_exclave ~lhs ~body =
   let whole_value_var = gen_symbol ~prefix:"__pattern_syntax" () in
   let whole_value_pattern = ppat_var ~loc { txt = whole_value_var; loc } in
   let whole_value_expr = pexp_ident ~loc { txt = Lident whole_value_var; loc } in
   match destruct ~assume_exhaustive:true ~loc ~modul ~lhs ~rhs:whole_value_expr ~body with
   | Some destruction ->
-    maybe_wrap_exclave ~loc ~locality destruction
+    maybe_wrap_exclave ~loc ~return_value_in_exclave destruction
     |> pexp_fun ~loc Nolabel None whole_value_pattern
-  | None -> maybe_wrap_exclave ~loc ~locality body |> pexp_fun ~loc Nolabel None lhs
+  | None ->
+    maybe_wrap_exclave ~loc ~return_value_in_exclave body
+    |> pexp_fun ~loc Nolabel None lhs
 ;;
 
-let expand_letn (module Ext : Ext) ~loc ~modul ~locality bindings body =
+let expand_letn
+  (module Ext : Ext)
+  ~loc
+  ~modul
+  ~locality:({ return_value_in_exclave; allocate_function_on_stack } : Locality.t)
+  bindings
+  body
+  =
   let n = List.length bindings in
   let operator =
     match n with
@@ -219,15 +252,16 @@ let expand_letn (module Ext : Ext) ~loc ~modul ~locality bindings body =
   let func =
     List.fold_right
       bindings
-      ~init:(maybe_wrap_exclave ~loc ~locality body)
+      ~init:(maybe_wrap_exclave ~loc ~return_value_in_exclave body)
       ~f:(fun { pvb_pat; _ } lower ->
         maybe_destruct
           ~destruct:Ext.destruct
           ~modul
-          ~locality:`global
+          ~return_value_in_exclave:false
           ~loc
           ~lhs:pvb_pat
           ~body:lower)
+    |> maybe_wrap_local ~loc ~allocate_function_on_stack
   in
   let location_args =
     match Ext.with_location with
@@ -236,7 +270,8 @@ let expand_letn (module Ext : Ext) ~loc ~modul ~locality bindings body =
     | Location_in_scope name -> [ location_arg_in_scope ~loc name ]
   in
   let args = bindings_args @ location_args @ [ Labelled "f", func ] in
-  pexp_apply ~loc operator args
+  let expr = pexp_apply ~loc operator args in
+  if allocate_function_on_stack then nontail ~loc expr else expr
 ;;
 
 let maybe_open ~(extension_kind : Extension_kind.t) ~to_open:module_to_open expr =
@@ -247,7 +282,14 @@ let maybe_open ~(extension_kind : Extension_kind.t) ~to_open:module_to_open expr
   else expr
 ;;
 
-let expand_let (module Ext : Ext) ~loc ~modul ~locality bindings body =
+let expand_let
+  (module Ext : Ext)
+  ~loc
+  ~modul
+  ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
+  bindings
+  body
+  =
   if List.length bindings = 0
   then invalid_arg "expand_let: list of bindings must be non-empty";
   (* Build expression [both E1 (both E2 (both ...))] *)
@@ -275,7 +317,14 @@ let expand_let (module Ext : Ext) ~loc ~modul ~locality bindings body =
     List.reduce_exn rev_patts ~f:(fun acc p -> ppat_tuple ~loc:tuple_loc [ p; acc ])
   in
   let fn =
-    maybe_destruct ~destruct:Ext.destruct ~loc ~modul ~locality ~lhs:nested_patterns ~body
+    maybe_destruct
+      ~destruct:Ext.destruct
+      ~loc
+      ~modul
+      ~return_value_in_exclave
+      ~lhs:nested_patterns
+      ~body
+    |> maybe_wrap_local ~loc ~allocate_function_on_stack
   in
   bind_apply
     ~op_name:Ext.name
@@ -284,6 +333,7 @@ let expand_let (module Ext : Ext) ~loc ~modul ~locality bindings body =
     ~with_location:Ext.with_location
     ~arg:nested_boths
     ~fn
+    ~prevent_tail_call:(Ext.prevent_tail_call || allocate_function_on_stack)
     ()
 ;;
 
@@ -305,7 +355,16 @@ let expand_if t ~extension_kind ~loc ~modul ~locality expr then_ else_ =
     ]
 ;;
 
-let expand_while (module Ext : Ext) ~locality ~extension_kind ~loc ~modul ~cond ~body =
+let expand_while
+  (module Ext : Ext)
+  ~locality:
+    ({ allocate_function_on_stack; return_value_in_exclave } as locality : Locality.t)
+  ~extension_kind
+  ~loc
+  ~modul
+  ~cond
+  ~body
+  =
   let loop_name = gen_symbol ~prefix:"__let_syntax_loop" () in
   let ploop = pvar ~loc loop_name in
   let eloop = evar ~loc loop_name in
@@ -319,13 +378,13 @@ let expand_while (module Ext : Ext) ~locality ~extension_kind ~loc ~modul ~cond 
         ~with_location:Ext.with_location
         ~arg:body
         ~fn:eloop
-        ~prevent_tail_call:Ext.prevent_tail_call
+        ~prevent_tail_call:(Ext.prevent_tail_call || allocate_function_on_stack)
         ()
     in
     let else_ = qualified_return ~loc ~modul (eunit ~loc) in
     expand_if (module Ext) ~extension_kind ~modul ~locality ~loc cond then_ else_
   in
-  let loop_body = maybe_wrap_exclave ~loc ~locality loop_body in
+  let loop_body = maybe_wrap_exclave ~loc ~return_value_in_exclave loop_body in
   let loop_func = pexp_fun ~loc Nolabel None (punit ~loc) loop_body in
   pexp_let
     ~loc
@@ -334,10 +393,10 @@ let expand_while (module Ext : Ext) ~locality ~extension_kind ~loc ~modul ~cond 
     loop_call
 ;;
 
-let expand_function ~loc ~locality cases =
-  match locality with
-  | `global -> pexp_function ~loc cases
-  | `local ->
+let expand_function ~loc ~return_value_in_exclave cases =
+  match return_value_in_exclave with
+  | false -> pexp_function ~loc cases
+  | true ->
     let var = gen_symbol ~prefix:"__let_syntax" () in
     pexp_match ~loc (evar ~loc var) cases
     |> wrap_exclave ~loc
@@ -357,15 +416,21 @@ module Map : Ext = struct
 
   let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
 
-  let expand_match ~loc ~modul ~locality expr cases =
+  let expand_match
+    ~loc
+    ~modul
+    ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
+    expr
+    cases
+    =
     bind_apply
       ~loc
       ~modul
       ~with_location
       ~op_name:name
       ~arg:expr
-      ~fn:(expand_function ~loc ~locality cases)
-      ~prevent_tail_call
+      ~fn:(expand_function ~loc ~return_value_in_exclave cases)
+      ~prevent_tail_call:allocate_function_on_stack
       ()
   ;;
 end
@@ -384,15 +449,21 @@ module Bind : Ext = struct
 
   let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
 
-  let expand_match ~loc ~modul ~locality expr cases =
+  let expand_match
+    ~loc
+    ~modul
+    ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
+    expr
+    cases
+    =
     bind_apply
       ~loc
       ~modul
       ~with_location
       ~op_name:name
       ~arg:expr
-      ~fn:(expand_function ~loc ~locality cases)
-      ~prevent_tail_call
+      ~fn:(expand_function ~loc ~return_value_in_exclave cases)
+      ~prevent_tail_call:allocate_function_on_stack
       ()
   ;;
 end
@@ -478,7 +549,7 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
         let expand =
           if extension_kind.collapse_binds
           then expand_letn ext ~modul ~locality
-          else expand_let ext ~modul ~locality ~prevent_tail_call:Ext.prevent_tail_call
+          else expand_let ext ~modul ~locality
         in
         Ext.wrap_expansion ~loc ~modul value_bindings expression ~expand
       in

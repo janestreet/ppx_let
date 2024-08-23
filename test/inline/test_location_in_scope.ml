@@ -10,7 +10,7 @@ let test (with_location_actual : Ppx_let_expander.With_location.t) =
        let with_location = with_location_actual
      end)
      Ppx_let_expander.Extension_kind.default
-     ~locality:`global
+     ~locality:Locality.global
      ~modul:None
      [%expr
        let PAT = EXPR in

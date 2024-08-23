@@ -7,7 +7,7 @@ let print_expr expr = Pprintast.string_of_expression expr |> print_string
 (* Doesn't actually check anything except within JS walls -- the public compiler doesn't
    yet support local allocations. *)
 
-let assert_zero_alloc f =
+let assert_zero_alloc f = exclave_
   let allocations_before = Gc.major_plus_minor_words () in
   let r = f () in
   let allocations_after = Gc.major_plus_minor_words () in
@@ -16,7 +16,7 @@ let assert_zero_alloc f =
   r
 ;;
 
-let check_some n =
+let check_some (local_ n) =
   match n with
   | Some () -> ()
   | None -> failwith "must be some"
@@ -26,6 +26,7 @@ let%expect_test "while%bindl trivial test" =
   let i = ref 0 in
   let (r : unit option) =
     assert_zero_alloc (fun () ->
+      exclave_
       while%bindl.Local_option
         incr i;
         Some (!i <= 5)
@@ -36,12 +37,16 @@ let%expect_test "while%bindl trivial test" =
   check_some r [@nontail]
 ;;
 
+let local : Locality.t =
+  { allocate_function_on_stack = true; return_value_in_exclave = true }
+;;
+
 let%expect_test "let%bindl expansion" =
   Ppx_let_expander.expand
     Ppx_let_expander.bind
     Ppx_let_expander.Extension_kind.default
     ~modul:None
-    ~locality:`local
+    ~locality:local
     [%expr
       let PATTERN1 = return EXPRESSION1
       and PATTERN2 = return EXPRESSION2 in
@@ -51,17 +56,18 @@ let%expect_test "let%bindl expansion" =
     {|
     let __let_syntax__001_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
     and __let_syntax__002_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.bind (Let_syntax.both __let_syntax__001_ __let_syntax__002_)
-      ~f:(fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3)
+    ((Let_syntax.bind (Let_syntax.both __let_syntax__001_ __let_syntax__002_)
+        ~f:(local_ fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3))
+      [@nontail ])
     |}]
 ;;
 
-let%expect_test "let%mapl expansion" =
+let%expect_test "let%bindl_val expansion" =
   Ppx_let_expander.expand
-    Ppx_let_expander.map
+    Ppx_let_expander.bind
     Ppx_let_expander.Extension_kind.default
     ~modul:None
-    ~locality:`local
+    ~locality:{ local with allocate_function_on_stack = false }
     [%expr
       let PATTERN1 = return EXPRESSION1
       and PATTERN2 = return EXPRESSION2 in
@@ -71,16 +77,59 @@ let%expect_test "let%mapl expansion" =
     {|
     let __let_syntax__004_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
     and __let_syntax__005_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.map (Let_syntax.both __let_syntax__004_ __let_syntax__005_)
+    Let_syntax.bind (Let_syntax.both __let_syntax__004_ __let_syntax__005_)
       ~f:(fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3)
     |}]
 ;;
 
-let something_to_tail_call () = Some ()
+let%expect_test "let%bindl_fun expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:{ local with return_value_in_exclave = false }
+    [%expr
+      let PATTERN1 = return EXPRESSION1
+      and PATTERN2 = return EXPRESSION2 in
+      return EXPRESSION3]
+  |> print_expr;
+  [%expect
+    {|
+    let __let_syntax__007_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__008_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    ((Let_syntax.bind (Let_syntax.both __let_syntax__007_ __let_syntax__008_)
+        ~f:(local_ fun (PATTERN1, PATTERN2) -> return EXPRESSION3))
+      [@nontail ])
+    |}]
+;;
+
+let%expect_test "let%mapl expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.map
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:local
+    [%expr
+      let PATTERN1 = return EXPRESSION1
+      and PATTERN2 = return EXPRESSION2 in
+      return EXPRESSION3]
+  |> print_expr;
+  [%expect
+    {|
+    let __let_syntax__010_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__011_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    ((Let_syntax.map (Let_syntax.both __let_syntax__010_ __let_syntax__011_)
+        ~f:(local_ fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3))
+      [@nontail ])
+    |}]
+;;
+
+let something_to_tail_call () = exclave_ Some ()
 
 let%expect_test "make sure let%bindl and let%mapl work well together" =
   let r : unit option option option =
     assert_zero_alloc (fun () ->
+      exclave_
       match%bindl.Local_option Some () with
       | () ->
         let open Local_option.Let_syntax in
@@ -100,7 +149,8 @@ let%expect_test "make sure let%bindl and let%mapl work well together" =
 let%expect_test "bind4" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      let%bindln.Local_option () = Some ()
+      exclave_
+      let%bindnl.Local_option () = Some ()
       and () = Some ()
       and () = Some ()
       and () = Some () in
@@ -112,7 +162,8 @@ let%expect_test "bind4" =
 let%expect_test "map4" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      let%mapln.Local_option () = Some ()
+      exclave_
+      let%mapnl.Local_option () = Some ()
       and () = Some ()
       and () = Some ()
       and () = Some () in
@@ -124,6 +175,7 @@ let%expect_test "map4" =
 let%expect_test "match%bindl" =
   let r : unit option =
     assert_zero_alloc (fun () ->
+      exclave_
       match%bindl.Local_option Some `hello with
       | `hello -> Some ())
   in
@@ -133,7 +185,7 @@ let%expect_test "match%bindl" =
 let%expect_test "if%bindl" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      if%bindl.Local_option Some true then Some () else failwith "impossible")
+      exclave_ if%bindl.Local_option Some true then Some () else failwith "impossible")
   in
   check_some r [@nontail]
 ;;
@@ -141,7 +193,7 @@ let%expect_test "if%bindl" =
 let%expect_test "if%mapl" =
   let r : unit option =
     assert_zero_alloc (fun () ->
-      if%mapl.Local_option Some true then () else failwith "impossible")
+      exclave_ if%mapl.Local_option Some true then () else failwith "impossible")
   in
   check_some r [@nontail]
 ;;
