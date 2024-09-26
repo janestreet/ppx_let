@@ -9,7 +9,7 @@ open Monad.Ident.Let_syntax
 
 let ext t =
   let extension_kind = Extension_kind.default in
-  let locality = `global in
+  let locality = Locality.global in
   Extension.declare_with_path_arg
     (ext_full_name t ~locality extension_kind)
     Extension.Context.expression

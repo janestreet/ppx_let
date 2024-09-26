@@ -21,7 +21,7 @@ end
 let () =
   let extensions =
     List.concat_map [ bind; map ] ~f:(fun t ->
-      List.concat_map [ `local; `global ] ~f:(fun locality ->
+      List.concat_map Ppx_let_expander.Locality.all ~f:(fun locality ->
         List.map
           Extension_kind.[ default; default_open; n; n_open ]
           ~f:(fun kind -> ext t ~locality kind)))
