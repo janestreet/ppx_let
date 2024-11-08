@@ -526,9 +526,14 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
 
                For reference, here is the relevant part of the parser:
                https://github.com/ocaml/ocaml/blob/4.07/parsing/parser.mly#L1628 *)
-            match vb.pvb_pat.ppat_desc, vb.pvb_expr.pexp_desc with
-            | ( Ppat_constraint (p, { ptyp_desc = Ptyp_poly ([], t1); _ })
-              , Pexp_constraint (_, t2) )
+            match
+              ( Ppxlib_jane.Shim.Pattern_desc.of_parsetree vb.pvb_pat.ppat_desc
+              , Ppxlib_jane.Shim.Expression_desc.of_parsetree
+                  ~loc:vb.pvb_expr.pexp_loc
+                  vb.pvb_expr.pexp_desc )
+            with
+            | ( Ppat_constraint (p, Some { ptyp_desc = Ptyp_poly ([], t1); _ }, _)
+              , Pexp_constraint (_, Some t2, _) )
               when phys_equal t1 t2 || Poly.equal t1 t2 ->
               ( p
               , { vb.pvb_expr with
