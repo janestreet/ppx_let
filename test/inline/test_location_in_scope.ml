@@ -32,7 +32,7 @@ let%expect_test "Location of callsite" =
       ~here:{
               Ppx_here_lib.pos_fname =
                 "i-will-appear-in-the-location-of-the-callsite-setting";
-              pos_lnum = 1;
+              pos_lnum = 0;
               pos_cnum = (-1);
               pos_bol = 0
             } EXPR ~f:(fun (PAT) -> BODY)
