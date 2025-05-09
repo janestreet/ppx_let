@@ -532,9 +532,13 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
                   ~loc:vb.pvb_expr.pexp_loc
                   vb.pvb_expr.pexp_desc )
             with
-            | ( Ppat_constraint (p, Some { ptyp_desc = Ptyp_poly ([], t1); _ }, _)
-              , Pexp_constraint (_, Some t2, _) )
-              when phys_equal t1 t2 || Poly.equal t1 t2 ->
+            | Ppat_constraint (p, Some t1, _), Pexp_constraint (_, Some t2, _)
+              when let t1 =
+                     match t1 with
+                     | { ptyp_desc = Ptyp_poly ([], t1); _ } -> t1
+                     | _ -> t1
+                   in
+                   phys_equal t1 t2 || Poly.equal t1 t2 ->
               ( p
               , { vb.pvb_expr with
                   pexp_loc = { vb.pvb_expr.pexp_loc with loc_ghost = true }
