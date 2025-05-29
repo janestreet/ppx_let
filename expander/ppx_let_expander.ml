@@ -338,7 +338,7 @@ let expand_while (module Ext : Ext) ~locality ~extension_kind ~loc ~modul ~cond 
 
 let expand_function ~loc ~locality cases =
   match locality with
-  | `global -> pexp_function ~loc cases
+  | `global -> pexp_function_cases ~loc cases
   | `local ->
     let var = gen_symbol ~prefix:"__let_syntax" () in
     pexp_match ~loc (evar ~loc var) cases
@@ -483,7 +483,7 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
       Location.raise_errorf ~loc "'let%%%s' may not be recursive" ext_full_name
     | Pexp_match (expr, cases) ->
       expand_match ext ~extension_kind ~loc ~modul ~locality expr cases
-    | Pexp_function cases ->
+    | Pexp_function (_, _, Pfunction_cases (cases, _, _)) ->
       let temp_var = gen_symbol ~prefix:"__let_syntax" () in
       let temp_pattern = ppat_var ~loc { txt = temp_var; loc } in
       let temp_expr = pexp_ident ~loc { txt = Lident temp_var; loc } in
