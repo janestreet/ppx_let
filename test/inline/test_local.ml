@@ -25,8 +25,7 @@ let check_some (local_ n) =
 let%expect_test "while%bindl trivial test" =
   let i = ref 0 in
   let (r : unit option) =
-    assert_zero_alloc (fun () ->
-      exclave_
+    assert_zero_alloc (fun () -> exclave_
       while%bindl.Local_option
         incr i;
         Some (!i <= 5)
@@ -128,8 +127,7 @@ let something_to_tail_call () = exclave_ Some ()
 
 let%expect_test "make sure let%bindl and let%mapl work well together" =
   let r : unit option option option =
-    assert_zero_alloc (fun () ->
-      exclave_
+    assert_zero_alloc (fun () -> exclave_
       match%bindl.Local_option Some () with
       | () ->
         let open Local_option.Let_syntax in
@@ -148,8 +146,7 @@ let%expect_test "make sure let%bindl and let%mapl work well together" =
 
 let%expect_test "bind4" =
   let r : unit option =
-    assert_zero_alloc (fun () ->
-      exclave_
+    assert_zero_alloc (fun () -> exclave_
       let%bindnl.Local_option () = Some ()
       and () = Some ()
       and () = Some ()
@@ -161,8 +158,7 @@ let%expect_test "bind4" =
 
 let%expect_test "map4" =
   let r : unit option =
-    assert_zero_alloc (fun () ->
-      exclave_
+    assert_zero_alloc (fun () -> exclave_
       let%mapnl.Local_option () = Some ()
       and () = Some ()
       and () = Some ()
@@ -174,8 +170,7 @@ let%expect_test "map4" =
 
 let%expect_test "match%bindl" =
   let r : unit option =
-    assert_zero_alloc (fun () ->
-      exclave_
+    assert_zero_alloc (fun () -> exclave_
       match%bindl.Local_option Some `hello with
       | `hello -> Some ())
   in
@@ -184,16 +179,16 @@ let%expect_test "match%bindl" =
 
 let%expect_test "if%bindl" =
   let r : unit option =
-    assert_zero_alloc (fun () ->
-      exclave_ if%bindl.Local_option Some true then Some () else failwith "impossible")
+    assert_zero_alloc (fun () -> exclave_
+      if%bindl.Local_option Some true then Some () else failwith "impossible")
   in
   check_some r [@nontail]
 ;;
 
 let%expect_test "if%mapl" =
   let r : unit option =
-    assert_zero_alloc (fun () ->
-      exclave_ if%mapl.Local_option Some true then () else failwith "impossible")
+    assert_zero_alloc (fun () -> exclave_
+      if%mapl.Local_option Some true then () else failwith "impossible")
   in
   check_some r [@nontail]
 ;;
