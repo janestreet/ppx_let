@@ -275,13 +275,13 @@ The generated closure will not have its own region, and thus the return value ma
 stack allocated:
 ```ocaml
 (* Using ppx *)
-let open Local_option.Let_syntax in
+let open Option.Local.Let_syntax in
 let%mapl_val x = y in
 ...
 ;;
 
 (* Expansion *)
-let open Local_option.Let_syntax in
+let open Option.Local.Let_syntax in
 Let_syntax.map y ~f:(fun x -> exclave_ ...)
 ```
 
@@ -300,13 +300,13 @@ own region. Thus, the return value may be stack allocated.
 
 ```ocaml
 (* Using ppx *)
-let open Local_option.Let_syntax in
+let open Option.Local.Let_syntax in
 let%mapl x = y in
 ...
 ;;
 
 (* Expansion *)
-let open Local_option.Let_syntax in
+let open Option.Local.Let_syntax in
 Let_syntax.map y ~f:(local_ fun x -> exclave_ ...) [@nontail]
 ```
 
