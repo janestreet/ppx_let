@@ -395,7 +395,7 @@ let expand_while
 
 let expand_function ~loc ~return_value_in_exclave cases =
   match return_value_in_exclave with
-  | false -> pexp_function ~loc cases
+  | false -> pexp_function_cases ~loc cases
   | true ->
     let var = gen_symbol ~prefix:"__let_syntax" () in
     pexp_match ~loc (evar ~loc var) cases
