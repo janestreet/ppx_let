@@ -58,20 +58,20 @@ In order to use these optmized functions, ppx\_let provides the `let%mapn`
 syntax, which picks the right `map{n}` function to call based on the amount of
 applicatives bound by the syntax.
 
-### Match statements
+### Match expressions
 
-We found that this form was quite useful for match statements as well. So for
+We found that this form was quite useful for match expressions as well. So for
 convenience ppx\_let also accepts `%bind` and `%map` on the `match` keyword.
 Morally `match%bind expr with cases` is seen as `let%bind x = expr in match x
 with cases`.
 
-### If statements
+### If expressions
 
 As a further convenience, ppx\_let accepts `%bind` and `%map` on the `if`
 keyword. The expression `if%bind expr1 then expr2 else expr3` is morally
 equivalent to `let%bind p = expr1 in if p then expr2 else expr3`.
 
-### Function statements
+### Function expressions
 
 We accept `function%bind` and `function%map` too.
 
