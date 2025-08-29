@@ -1,0 +1,21 @@
+let no_let_rec =
+  let%bind rec x = Some 4 in
+  ()
+;;
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: 'let%bind' may not be recursive
+|}]
+
+let no_let_mutable =
+  let%bind mutable x = Some 4 in
+  ()
+;;
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: 'let%bind' may not be mutable
+|}]

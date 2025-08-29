@@ -64,7 +64,11 @@ module type Ext = sig
 
   (* Called before each expansion to ensure that the expression being expanded
      is supported. *)
-  val disallow_expression : Extension_kind.t -> expression_desc -> (unit, string) Result.t
+  val disallow_expression
+    :  loc:Location.t
+    -> Extension_kind.t
+    -> expression_desc
+    -> (unit, string) Result.t
 
   (* Called when expanding a let-binding (and indirectly, when expanding a
      match-expression) to destructure [rhs]. The resulting expression should
@@ -409,7 +413,7 @@ module Map : Ext = struct
   let wrap_expansion = wrap_expansion_identity
   let prevent_tail_call = false
 
-  let disallow_expression _ = function
+  let disallow_expression ~loc:_ _ = function
     | Pexp_while (_, _) -> Error "while%%map is not supported. use while%%bind instead."
     | _ -> Ok ()
   ;;
@@ -441,7 +445,7 @@ module Bind : Ext = struct
   let wrap_expansion = wrap_expansion_identity
   let prevent_tail_call = false
 
-  let disallow_expression (extension_kind : Extension_kind.t) = function
+  let disallow_expression ~loc:_ (extension_kind : Extension_kind.t) = function
     | Pexp_while (_, _) when extension_kind.collapse_binds ->
       Error "while%%bindn is not supported. use while%%bind instead."
     | _ -> Ok ()
@@ -512,12 +516,12 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   let expansion =
     let expr_desc =
-      match Ext.disallow_expression extension_kind expr.pexp_desc with
+      match Ext.disallow_expression ~loc extension_kind expr.pexp_desc with
       | Error message -> Location.raise_errorf ~loc "%s" message
       | Ok () -> expr.pexp_desc
     in
     match Ppxlib_jane.Shim.Expression_desc.of_parsetree expr_desc ~loc with
-    | Pexp_let (Nonrecursive, bindings, expr) ->
+    | Pexp_let (Immutable, Nonrecursive, bindings, expr) ->
       let bindings =
         List.map bindings ~f:(fun vb ->
           let pvb_pat, pvb_expr =
@@ -563,9 +567,12 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
         Ext.wrap_expansion ~loc ~modul value_bindings expression ~expand
       in
       expand_with_tmp_vars ~loc bindings expr ~f
-    | Pexp_let (Recursive, _, _) ->
+    | Pexp_let (_, Recursive, _, _) ->
       let ext_full_name = ext_full_name ext ~locality extension_kind in
       Location.raise_errorf ~loc "'let%%%s' may not be recursive" ext_full_name
+    | Pexp_let (Mutable, _, _, _) ->
+      let ext_full_name = ext_full_name ext ~locality extension_kind in
+      Location.raise_errorf ~loc "'let%%%s' may not be mutable" ext_full_name
     | Pexp_match (expr, cases) ->
       expand_match ext ~extension_kind ~loc ~modul ~locality expr cases
     | Pexp_ifthenelse (expr, then_, else_) ->
