@@ -81,7 +81,11 @@ module type Ext = sig
 
   (* Called before each expansion to ensure that the expression being expanded
      is supported. *)
-  val disallow_expression : Extension_kind.t -> expression_desc -> (unit, string) Result.t
+  val disallow_expression
+    :  loc:Location.t
+    -> Extension_kind.t
+    -> expression_desc
+    -> (unit, string) Result.t
 
   (* Called when expanding a let-binding (and indirectly, when expanding a
      match-expression) to destructure [rhs]. The resulting expression should
