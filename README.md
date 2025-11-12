@@ -330,3 +330,42 @@ val bind : 'a t -> local_ ('a -> local_ 'b t) -> local_ 'b t
 You can use these extensions with `%mapn` and `%bindn` as well. The full list of such
 extensions is : `%mapnl`, `%bindnl`, `%mapnl_fun`, `%bindnl_fun`, `%mapnl_val`, and
 `%bindnl_val`.
+
+Zero-alloc let syntax
+---------------------
+
+`ppx_let` supports adding the `[@zero_alloc]` attribute to the generated function by using
+the `z` suffix. This is useful when you want to ensure that the function passed to `bind`
+or `map` does not allocate.
+
+### Example: `%bindz` and `%mapz`
+
+The `z` suffix adds a `[@zero_alloc]` attribute to the generated function:
+
+```ocaml
+(* Using ppx *)
+let open Option.Let_syntax in
+let%bindz x = y in
+...
+;;
+
+(* Expansion *)
+let open Option.Let_syntax in
+Let_syntax.bind y ~f:(fun [@zero_alloc] x -> ...)
+```
+
+You can combine the `z` suffix with other modifiers:
+
+- `%bindz`, `%mapz` - basic zero-alloc versions
+- `%bindz_open`, `%mapz_open` - zero-alloc with open on RHS
+- `%bindnz`, `%mapnz` - zero-alloc with collapsed bindings (using `map2`, `bind2`, etc.)
+- `%bindnz_open`, `%mapnz_open` - zero-alloc with collapsed bindings and open on RHS
+
+The `z` suffix can also be combined with locality modifiers:
+
+- `%bindzl`, `%mapzl` - zero-alloc with local function and exclave
+- `%bindzl_fun`, `%mapzl_fun` - zero-alloc with local function only
+- `%bindzl_val`, `%mapzl_val` - zero-alloc with exclave only
+
+And similarly for the `n` variants: `%bindnzl`, `%mapnzl`, `%bindnzl_fun`, `%mapnzl_fun`,
+`%bindnzl_val`, `%mapnzl_val`, etc.

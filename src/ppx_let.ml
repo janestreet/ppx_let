@@ -23,7 +23,7 @@ let () =
     List.concat_map [ bind; map ] ~f:(fun t ->
       List.concat_map Ppx_let_expander.Locality.all ~f:(fun locality ->
         List.map
-          Extension_kind.[ default; default_open; n; n_open ]
+          Extension_kind.[ default; default_open; n; n_open; z; z_open; nz; nz_open ]
           ~f:(fun kind -> ext t ~locality kind)))
   in
   Driver.register_transformation "let" ~extensions

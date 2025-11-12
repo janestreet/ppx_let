@@ -22,12 +22,17 @@ module Extension_kind = struct
   type t =
     { do_open : bool
     ; collapse_binds : bool
+    ; zero_alloc : bool
     }
 
-  let default = { do_open = false; collapse_binds = false }
-  let default_open = { do_open = true; collapse_binds = false }
-  let n = { do_open = false; collapse_binds = true }
-  let n_open = { do_open = true; collapse_binds = true }
+  let default = { do_open = false; collapse_binds = false; zero_alloc = false }
+  let default_open = { do_open = true; collapse_binds = false; zero_alloc = false }
+  let n = { do_open = false; collapse_binds = true; zero_alloc = false }
+  let n_open = { do_open = true; collapse_binds = true; zero_alloc = false }
+  let z = { do_open = false; collapse_binds = false; zero_alloc = true }
+  let z_open = { do_open = true; collapse_binds = false; zero_alloc = true }
+  let nz = { do_open = false; collapse_binds = true; zero_alloc = true }
+  let nz_open = { do_open = true; collapse_binds = true; zero_alloc = true }
 end
 
 module Locality = struct
@@ -86,7 +91,8 @@ module type Ext = sig
   (* Expands any match%[name] expressions. It is also used when expanding
      if%[name]. *)
   val expand_match
-    :  loc:location
+    :  extension_kind:Extension_kind.t
+    -> loc:location
     -> modul:longident loc option
     -> locality:Locality.t
     -> expression
@@ -129,6 +135,7 @@ let ext_full_name (module Ext : Ext) ~(locality : Locality.t) (kind : Extension_
   String.concat
     [ Ext.name
     ; (if kind.collapse_binds then "n" else "")
+    ; (if kind.zero_alloc then "z" else "")
     ; (match allocate_function_on_stack, return_value_in_exclave with
        | true, true -> "l" (* "local" *)
        | true, false -> "l_fun" (* "local function" *)
@@ -167,8 +174,17 @@ let nontail ~loc expr =
   { expr with pexp_attributes = attr :: expr.pexp_attributes }
 ;;
 
+let add_zero_alloc_attribute ~loc expr =
+  let attr = attribute ~loc ~name:{ txt = "zero_alloc"; loc } ~payload:(PStr []) in
+  { expr with pexp_attributes = attr :: expr.pexp_attributes }
+;;
+
+let maybe_wrap_zero_alloc ~loc ~zero_alloc func =
+  if zero_alloc then add_zero_alloc_attribute ~loc func else func
+;;
+
 let bind_apply
-  ?(fn_label = "f")
+  ~fn_label
   ~prevent_tail_call
   ~op_name
   ~loc
@@ -223,21 +239,33 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
 ;;
 
-let maybe_destruct ~destruct ~loc ~modul ~return_value_in_exclave ~lhs ~body =
+let maybe_destruct ~destruct ~loc ~modul ~return_value_in_exclave ~zero_alloc ~lhs ~body =
   let whole_value_var = gen_symbol ~prefix:"__pattern_syntax" () in
   let whole_value_pattern = ppat_var ~loc { txt = whole_value_var; loc } in
   let whole_value_expr = pexp_ident ~loc { txt = Lident whole_value_var; loc } in
-  match destruct ~assume_exhaustive:true ~loc ~modul ~lhs ~rhs:whole_value_expr ~body with
-  | Some destruction ->
-    maybe_wrap_exclave ~loc ~return_value_in_exclave destruction
-    |> pexp_fun ~loc Nolabel None whole_value_pattern
-  | None ->
-    maybe_wrap_exclave ~loc ~return_value_in_exclave body
-    |> pexp_fun ~loc Nolabel None lhs
+  let func =
+    match
+      destruct ~assume_exhaustive:true ~loc ~modul ~lhs ~rhs:whole_value_expr ~body
+    with
+    | Some destruction ->
+      maybe_wrap_exclave ~loc ~return_value_in_exclave destruction
+      |> pexp_fun ~loc Nolabel None whole_value_pattern
+    | None ->
+      maybe_wrap_exclave ~loc ~return_value_in_exclave body
+      |> pexp_fun ~loc Nolabel None lhs
+  in
+  maybe_wrap_zero_alloc ~loc ~zero_alloc func
+;;
+
+let function_label extension_kind =
+  match extension_kind.Extension_kind.zero_alloc with
+  | true -> "f_zero_alloc"
+  | false -> "f"
 ;;
 
 let expand_letn
   (module Ext : Ext)
+  ~extension_kind
   ~loc
   ~modul
   ~locality:({ return_value_in_exclave; allocate_function_on_stack } : Locality.t)
@@ -262,9 +290,11 @@ let expand_letn
           ~destruct:Ext.destruct
           ~modul
           ~return_value_in_exclave:false
+          ~zero_alloc:false
           ~loc
           ~lhs:pvb_pat
           ~body:lower)
+    |> maybe_wrap_zero_alloc ~loc ~zero_alloc:extension_kind.Extension_kind.zero_alloc
     |> maybe_wrap_local ~loc ~allocate_function_on_stack
   in
   let location_args =
@@ -273,7 +303,10 @@ let expand_letn
     | Location_of_callsite -> [ location_arg ~loc ]
     | Location_in_scope name -> [ location_arg_in_scope ~loc name ]
   in
-  let args = bindings_args @ location_args @ [ Labelled "f", func ] in
+  let args =
+    let label = function_label extension_kind in
+    bindings_args @ location_args @ [ Labelled label, func ]
+  in
   let expr = pexp_apply ~loc operator args in
   if allocate_function_on_stack then nontail ~loc expr else expr
 ;;
@@ -288,6 +321,7 @@ let maybe_open ~(extension_kind : Extension_kind.t) ~to_open:module_to_open expr
 
 let expand_let
   (module Ext : Ext)
+  ~extension_kind
   ~loc
   ~modul
   ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
@@ -326,11 +360,14 @@ let expand_let
       ~loc
       ~modul
       ~return_value_in_exclave
+      ~zero_alloc:extension_kind.Extension_kind.zero_alloc
       ~lhs:nested_patterns
       ~body
     |> maybe_wrap_local ~loc ~allocate_function_on_stack
   in
+  let fn_label = function_label extension_kind in
   bind_apply
+    ~fn_label
     ~op_name:Ext.name
     ~loc
     ~modul
@@ -343,7 +380,7 @@ let expand_let
 
 let expand_match (module Ext : Ext) ~extension_kind ~loc ~modul ~locality expr cases =
   let expr = maybe_open ~extension_kind ~to_open:(open_on_rhs ~modul) expr in
-  Ext.expand_match ~loc ~modul ~locality expr cases
+  Ext.expand_match ~extension_kind ~loc ~modul ~locality expr cases
 ;;
 
 let expand_if t ~extension_kind ~loc ~modul ~locality expr then_ else_ =
@@ -376,6 +413,7 @@ let expand_while
   let loop_body =
     let then_ =
       bind_apply
+        ~fn_label:(function_label extension_kind)
         ~op_name:Ext.name
         ~loc
         ~modul
@@ -397,14 +435,17 @@ let expand_while
     loop_call
 ;;
 
-let expand_function ~loc ~return_value_in_exclave cases =
-  match return_value_in_exclave with
-  | false -> pexp_function ~loc cases
-  | true ->
-    let var = gen_symbol ~prefix:"__let_syntax" () in
-    pexp_match ~loc (evar ~loc var) cases
-    |> wrap_exclave ~loc
-    |> pexp_fun ~loc Nolabel None (pvar ~loc var)
+let expand_function ~loc ~return_value_in_exclave ~zero_alloc cases =
+  let func =
+    match return_value_in_exclave with
+    | false -> pexp_function ~loc cases
+    | true ->
+      let var = gen_symbol ~prefix:"__let_syntax" () in
+      pexp_match ~loc (evar ~loc var) cases
+      |> wrap_exclave ~loc
+      |> pexp_fun ~loc Nolabel None (pvar ~loc var)
+  in
+  maybe_wrap_zero_alloc ~loc ~zero_alloc func
 ;;
 
 module Map : Ext = struct
@@ -421,6 +462,7 @@ module Map : Ext = struct
   let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
 
   let expand_match
+    ~extension_kind
     ~loc
     ~modul
     ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
@@ -428,12 +470,18 @@ module Map : Ext = struct
     cases
     =
     bind_apply
+      ~fn_label:(function_label extension_kind)
       ~loc
       ~modul
       ~with_location
       ~op_name:name
       ~arg:expr
-      ~fn:(expand_function ~loc ~return_value_in_exclave cases)
+      ~fn:
+        (expand_function
+           ~loc
+           ~return_value_in_exclave
+           ~zero_alloc:extension_kind.Extension_kind.zero_alloc
+           cases)
       ~prevent_tail_call:allocate_function_on_stack
       ()
   ;;
@@ -454,6 +502,7 @@ module Bind : Ext = struct
   let destruct ~assume_exhaustive:_ ~loc:_ ~modul:_ ~lhs:_ ~rhs:_ ~body:_ = None
 
   let expand_match
+    ~extension_kind
     ~loc
     ~modul
     ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
@@ -461,12 +510,18 @@ module Bind : Ext = struct
     cases
     =
     bind_apply
+      ~fn_label:(function_label extension_kind)
       ~loc
       ~modul
       ~with_location
       ~op_name:name
       ~arg:expr
-      ~fn:(expand_function ~loc ~return_value_in_exclave cases)
+      ~fn:
+        (expand_function
+           ~loc
+           ~return_value_in_exclave
+           ~zero_alloc:extension_kind.Extension_kind.zero_alloc
+           cases)
       ~prevent_tail_call:allocate_function_on_stack
       ()
   ;;
@@ -561,8 +616,8 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
       let f ~loc value_bindings expression =
         let expand =
           if extension_kind.collapse_binds
-          then expand_letn ext ~modul ~locality
-          else expand_let ext ~modul ~locality
+          then expand_letn ext ~extension_kind ~modul ~locality
+          else expand_let ext ~extension_kind ~modul ~locality
         in
         Ext.wrap_expansion ~loc ~modul value_bindings expression ~expand
       in
@@ -607,3 +662,18 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
 
 let map = (module Map : Ext)
 let bind = (module Bind : Ext)
+
+(* Expose with optional [~fn_label]: *)
+let bind_apply
+  ?(fn_label = "f")
+  ~prevent_tail_call
+  ~op_name
+  ~loc
+  ~modul
+  ~with_location
+  ~arg
+  ~fn
+  ()
+  =
+  bind_apply ~fn_label ~prevent_tail_call ~op_name ~loc ~modul ~with_location ~arg ~fn ()
+;;

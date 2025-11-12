@@ -2,5 +2,5 @@
  (name ppx_let)
  (public_name ppx_let)
  (kind ppx_rewriter)
- (libraries ppxlib ppx_let_expander)
+ (libraries ppx_let_expander ppxlib)
  (preprocess no_preprocessing))

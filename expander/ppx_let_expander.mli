@@ -4,6 +4,7 @@ module Extension_kind : sig
   type t =
     { do_open : bool
     ; collapse_binds : bool
+    ; zero_alloc : bool
     }
 
   (* let%bind, let%map, etc. *)
@@ -17,6 +18,18 @@ module Extension_kind : sig
 
   (* let%bindn_open, let%mapn_open, etc. *)
   val n_open : t
+
+  (* let%bindz, let%mapz, etc. *)
+  val z : t
+
+  (* let%bindz_open, let%mapz_open, etc. *)
+  val z_open : t
+
+  (* let%bindnz, let%mapnz, etc. *)
+  val nz : t
+
+  (* let%bindnz_open, let%mapnz_open, etc. *)
+  val nz_open : t
 end
 
 module Locality : sig
@@ -103,7 +116,8 @@ module type Ext = sig
   (* Expands any match%[name] expressions. It is also used when expanding
      if%[name]. *)
   val expand_match
-    :  loc:location
+    :  extension_kind:Extension_kind.t
+    -> loc:location
     -> modul:longident loc option
     -> locality:Locality.t
     -> expression
@@ -168,6 +182,7 @@ val maybe_destruct
   -> loc:location
   -> modul:'a
   -> return_value_in_exclave:bool
+  -> zero_alloc:bool
   -> lhs:pattern
   -> body:expression
   -> expression
