@@ -66,14 +66,25 @@ module With_location : sig
     | Location_in_scope of string
 end
 
+module Match_kind : sig
+  (** ppx_let implements the expansion of `if%ext`, by treating it as a match%ext that
+      matches on a boolean. In order to still be able to distinguish the origin for error
+      message reporting purposes [Match_kind.t] is a tiny type that let you know if the
+      "match" expansion comes from a [match%ext] or an [if%ext] *)
+
+  type t =
+    | Match (** match%ext *)
+    | If_ (** if%ext *)
+end
+
 module type Ext = sig
-  (* The base string of all the related extensions. For example, if the value
-     is "bind", then other extensions will include "bind_open", "bindn", and
-     "bindn_open" - all of which start with "bind" *)
+  (* The base string of all the related extensions. For example, if the value is "bind",
+     then other extensions will include "bind_open", "bindn", and "bindn_open" - all of
+     which start with "bind" *)
   val name : string
   val with_location : With_location.t
 
-  (* When true, prevent_tail_call will keep the resulting
+  (*=When true, prevent_tail_call will keep the resulting
      function application from being in tail position by introducing a local
      variable.  This is useful when working in with locals, and was added in order to
      allow ppx_bonsai to transform
@@ -92,8 +103,8 @@ module type Ext = sig
      {[ sub foo ~f:(fun a -> a) ]} *)
   val prevent_tail_call : bool
 
-  (* Called before each expansion to ensure that the expression being expanded
-     is supported. *)
+  (* Called before each expansion to ensure that the expression being expanded is
+     supported. *)
   val disallow_expression
     :  loc:Location.t
     -> Extension_kind.t
@@ -101,9 +112,9 @@ module type Ext = sig
     -> (unit, string) Result.t
 
   (* Called when expanding a let-binding (and indirectly, when expanding a
-     match-expression) to destructure [rhs]. The resulting expression should
-     make each variable in [lhs] available for use in [body]. If the result is
-     [None], then no special destructuring is necessary. *)
+     match-expression) to destructure [rhs]. The resulting expression should make each
+     variable in [lhs] available for use in [body]. If the result is [None], then no
+     special destructuring is necessary. *)
   val destruct
     :  assume_exhaustive:bool
     -> loc:location
@@ -113,10 +124,10 @@ module type Ext = sig
     -> body:expression
     -> expression option
 
-  (* Expands any match%[name] expressions. It is also used when expanding
-     if%[name]. *)
+  (* Expands any match%[name] expressions. It is also used when expanding if%[name]. *)
   val expand_match
     :  extension_kind:Extension_kind.t
+    -> match_kind:Match_kind.t
     -> loc:location
     -> modul:longident loc option
     -> locality:Locality.t
@@ -136,8 +147,8 @@ module type Ext = sig
     -> expression
 end
 
-(* A trivial implementation of [Ext.wrap_expansion] that does nothing to change
-   the expansion behavior. *)
+(* A trivial implementation of [Ext.wrap_expansion] that does nothing to change the
+   expansion behavior. *)
 val wrap_expansion_identity
   :  loc:location
   -> modul:longident loc option

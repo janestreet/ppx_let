@@ -59,16 +59,22 @@ module With_location = struct
     | Location_in_scope of string
 end
 
+module Match_kind = struct
+  type t =
+    | Match
+    | If_
+end
+
 module type Ext = sig
-  (* The base string of all the related extensions. For example, if the value
-     is "bind", then other extensions will include "bind_open", "bindn", and
-     "bindn_open" - all of which start with "bind" *)
+  (* The base string of all the related extensions. For example, if the value is "bind",
+     then other extensions will include "bind_open", "bindn", and "bindn_open" - all of
+     which start with "bind" *)
   val name : string
   val with_location : With_location.t
   val prevent_tail_call : bool
 
-  (* Called before each expansion to ensure that the expression being expanded
-     is supported. *)
+  (* Called before each expansion to ensure that the expression being expanded is
+     supported. *)
   val disallow_expression
     :  loc:Location.t
     -> Extension_kind.t
@@ -76,9 +82,9 @@ module type Ext = sig
     -> (unit, string) Result.t
 
   (* Called when expanding a let-binding (and indirectly, when expanding a
-     match-expression) to destructure [rhs]. The resulting expression should
-     make each variable in [lhs] available for use in [body]. If the result is
-     [None], then no special destructuring is necessary. *)
+     match-expression) to destructure [rhs]. The resulting expression should make each
+     variable in [lhs] available for use in [body]. If the result is [None], then no
+     special destructuring is necessary. *)
   val destruct
     :  assume_exhaustive:bool
     -> loc:location
@@ -88,10 +94,10 @@ module type Ext = sig
     -> body:expression
     -> expression option
 
-  (* Expands any match%[name] expressions. It is also used when expanding
-     if%[name]. *)
+  (* Expands any match%[name] expressions. It is also used when expanding if%[name]. *)
   val expand_match
     :  extension_kind:Extension_kind.t
+    -> match_kind:Match_kind.t
     -> loc:location
     -> modul:longident loc option
     -> locality:Locality.t
@@ -378,15 +384,25 @@ let expand_let
     ()
 ;;
 
-let expand_match (module Ext : Ext) ~extension_kind ~loc ~modul ~locality expr cases =
+let expand_match
+  (module Ext : Ext)
+  ~extension_kind
+  ~match_kind
+  ~loc
+  ~modul
+  ~locality
+  expr
+  cases
+  =
   let expr = maybe_open ~extension_kind ~to_open:(open_on_rhs ~modul) expr in
-  Ext.expand_match ~extension_kind ~loc ~modul ~locality expr cases
+  Ext.expand_match ~extension_kind ~match_kind ~loc ~modul ~locality expr cases
 ;;
 
 let expand_if t ~extension_kind ~loc ~modul ~locality expr then_ else_ =
   expand_match
     t
     ~extension_kind
+    ~match_kind:If_
     ~loc
     ~modul
     ~locality
@@ -394,6 +410,10 @@ let expand_if t ~extension_kind ~loc ~modul ~locality expr then_ else_ =
     [ case ~lhs:(pbool ~loc true) ~guard:None ~rhs:then_
     ; case ~lhs:(pbool ~loc false) ~guard:None ~rhs:else_
     ]
+;;
+
+let expand_match ext ~extension_kind ~loc ~modul ~locality expr cases =
+  expand_match ext ~extension_kind ~match_kind:Match ~loc ~modul ~locality expr cases
 ;;
 
 let expand_while
@@ -463,6 +483,7 @@ module Map : Ext = struct
 
   let expand_match
     ~extension_kind
+    ~match_kind:_
     ~loc
     ~modul
     ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
@@ -503,6 +524,7 @@ module Bind : Ext = struct
 
   let expand_match
     ~extension_kind
+    ~match_kind:_
     ~loc
     ~modul
     ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)

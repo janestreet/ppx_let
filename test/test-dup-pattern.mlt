@@ -11,9 +11,8 @@ module Let_syntax = struct
 end
 
 let (_ : _) =
-  (* This tests whether we correctly detect that `let x : t = e`
-     has been rewritten into `let x : t = (e : t)` (and undo the
-     change). A typing error occurs  *)
+  (* This tests whether we correctly detect that `let x : t = e` has been rewritten into
+     `let x : t = (e : t)` (and undo the change). A typing error occurs *)
   let%map_open _x : int Let_syntax.t = return 42 in
   ()
 ;;
