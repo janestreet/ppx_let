@@ -262,8 +262,8 @@ let () =
 ;;
 
 let () =
-  (* Use this code to test if :MerlinTypeOf behaves properly. In particular,
-     [lhs_*] variables should have type 'a instead of 'a Monad_example.X.t. *)
+  (* Use this code to test if :MerlinTypeOf behaves properly. In particular, [lhs_*]
+     variables should have type 'a instead of 'a Monad_example.X.t. *)
   let open Monad_example.X.Let_syntax in
   let rhs_a = return 1 in
   let rhs_b = return 1. in

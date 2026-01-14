@@ -602,8 +602,8 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
       let bindings =
         List.map bindings ~f:(fun vb ->
           let pvb_pat, pvb_expr =
-            (* Temporary hack tentatively detecting that the parser
-               has expanded `let x : t = e` into `let x : t = (e : t)`.
+            (* Temporary hack tentatively detecting that the parser has expanded `let x :
+               t = e` into `let x : t = (e : t)`.
 
                For reference, here is the relevant part of the parser:
                https://github.com/ocaml/ocaml/blob/4.07/parsing/parser.mly#L1628 *)
