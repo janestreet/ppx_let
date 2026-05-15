@@ -24,47 +24,92 @@ let%expect_test "while%bind expansion" =
   [%expect
     {|
     locality = ((allocate_function_on_stack false) (return_value_in_exclave false)):
-    let rec __let_syntax_loop__001_ () =
-      Let_syntax.bind MY_CONDITION
-        ~f:(function
-            | true -> Let_syntax.bind MY_BODY ~f:__let_syntax_loop__001_
-            | false -> Let_syntax.return ())[@@ppxlib.do_not_enter_value ] in
-    __let_syntax_loop__001_ ()
+    Let_syntax.bind MY_CONDITION
+      ~f:(function
+          | true ->
+              let rec __let_syntax_loop__001_ () =
+                Let_syntax.bind MY_BODY
+                  ~f:(fun () ->
+                        Let_syntax.bind MY_CONDITION
+                          ~f:(function
+                              | true -> __let_syntax_loop__001_ ()
+                              | false -> Let_syntax.return ()))[@@ppxlib.do_not_enter_value
+                                                                 ] in
+              __let_syntax_loop__001_ ()
+          | false -> Let_syntax.return ())
     ----
     locality = ((allocate_function_on_stack true) (return_value_in_exclave false)):
-    let rec __let_syntax_loop__002_ () =
-      ((Let_syntax.bind MY_CONDITION
-          ~f:(function
-              | true -> ((Let_syntax.bind MY_BODY ~f:__let_syntax_loop__002_)
-                  [@nontail ])
-              | false -> Let_syntax.return ()))
-      [@nontail ])[@@ppxlib.do_not_enter_value ] in
-    __let_syntax_loop__002_ ()
+    ((Let_syntax.bind MY_CONDITION
+        ~f:(function
+            | true ->
+                let rec __let_syntax_loop__002_ =
+                  (fun () ->
+                     ((Let_syntax.bind MY_BODY
+                         ~f:(fun () ->
+                               ((Let_syntax.bind MY_CONDITION
+                                   ~f:(function
+                                       | true -> __let_syntax_loop__002_ ()
+                                       | false -> Let_syntax.return ()))
+                               [@nontail ]) : @ local))
+                     [@nontail ]) : @ local)[@@ppxlib.do_not_enter_value ] in
+                ((__let_syntax_loop__002_ ())[@nontail ])
+            | false -> Let_syntax.return ()))
+    [@nontail ])
     ----
     locality = ((allocate_function_on_stack false) (return_value_in_exclave true)):
-    let rec __let_syntax_loop__003_ () =
-      exclave_ Let_syntax.bind MY_CONDITION
-                 ~f:(fun __let_syntax__004_ ->
-                       exclave_ match __let_syntax__004_ with
-                                | true ->
-                                    Let_syntax.bind MY_BODY
-                                      ~f:__let_syntax_loop__003_
-                                | false -> Let_syntax.return ())[@@ppxlib.do_not_enter_value
-                                                                  ] in
-    __let_syntax_loop__003_ ()
+    Let_syntax.bind MY_CONDITION
+      ~f:(fun __let_syntax__005_ ->
+            exclave_ match __let_syntax__005_ with
+                     | true ->
+                         let rec __let_syntax_loop__003_ () =
+                           exclave_ Let_syntax.bind MY_BODY
+                                      ~f:(fun () ->
+                                            exclave_ Let_syntax.bind MY_CONDITION
+                                                       ~f:(fun __let_syntax__004_
+                                                             ->
+                                                             exclave_ match __let_syntax__004_
+                                                                      with
+                                                                      | true ->
+                                                                        __let_syntax_loop__003_
+                                                                        ()
+                                                                      | false ->
+                                                                        Let_syntax.return
+                                                                        ()))
+                           [@@ppxlib.do_not_enter_value ] in
+                         __let_syntax_loop__003_ ()
+                     | false -> Let_syntax.return ())
     ----
     locality = ((allocate_function_on_stack true) (return_value_in_exclave true)):
-    let rec __let_syntax_loop__005_ () =
-      exclave_ ((Let_syntax.bind MY_CONDITION
-                   ~f:(fun __let_syntax__006_ ->
-                         exclave_ match __let_syntax__006_ with
-                                  | true ->
-                                      ((Let_syntax.bind MY_BODY
-                                          ~f:__let_syntax_loop__005_)
-                                      [@nontail ])
-                                  | false -> Let_syntax.return ()))
-        [@nontail ])[@@ppxlib.do_not_enter_value ] in
-    __let_syntax_loop__005_ ()
+    ((Let_syntax.bind MY_CONDITION
+        ~f:(fun __let_syntax__008_ ->
+              exclave_ match __let_syntax__008_ with
+                       | true ->
+                           let rec __let_syntax_loop__006_ =
+                             (fun () ->
+                                exclave_ ((Let_syntax.bind MY_BODY
+                                             ~f:(fun () ->
+                                                   exclave_ ((Let_syntax.bind
+                                                                MY_CONDITION
+                                                                ~f:(fun
+                                                                      __let_syntax__007_
+                                                                      ->
+                                                                      exclave_
+                                                                        match __let_syntax__007_
+                                                                        with
+                                                                        |
+                                                                        true ->
+                                                                        __let_syntax_loop__006_
+                                                                        ()
+                                                                        |
+                                                                        false ->
+                                                                        Let_syntax.return
+                                                                        ()))
+                                                     [@nontail ]) : @ local))
+                                  [@nontail ]) : @ local)[@@ppxlib.do_not_enter_value
+                                                           ] in
+                           ((__let_syntax_loop__006_ ())[@nontail ])
+                       | false -> Let_syntax.return ()))
+    [@nontail ])
     |}]
 ;;
 

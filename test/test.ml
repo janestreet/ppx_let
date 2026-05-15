@@ -295,3 +295,51 @@ let () =
   in
   ()
 ;;
+
+module I = struct
+  type 'a t = 'a
+
+  module Let_syntax = struct
+    module Let_syntax = struct
+      let map x ~f = f x
+      let bind x ~f = f x
+    end
+  end
+end
+
+(* expansion with closures on the rhs *)
+[@@@expand_inline
+  let (_ : _) =
+    let%map.I a = 1 in
+    fun b -> a + b
+  ;;
+
+  let (_ : _) =
+    let%bind.I a = 1 in
+    fun b -> a + b
+  ;;]
+
+let _ : _ =
+  I.Let_syntax.Let_syntax.map 1 ~f:(fun a ->
+    let () = () [@@merlin.hide] in
+    fun b -> a + b)
+;;
+
+let _ : _ =
+  I.Let_syntax.Let_syntax.bind 1 ~f:(fun a ->
+    let () = () [@@merlin.hide] in
+    fun b -> a + b)
+;;
+
+[@@@end]
+
+(* fully qualified extension *)
+
+include struct
+  open I.Let_syntax
+
+  let _ : _ =
+    let%let.bind _ = () in
+    ()
+  ;;
+end

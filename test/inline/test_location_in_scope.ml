@@ -21,7 +21,8 @@ let test (with_location_actual : Ppx_let_expander.With_location.t) =
 
 let%expect_test "No location" =
   test No_location;
-  [%expect {| Let_syntax.map EXPR ~f:(fun (PAT) -> BODY) |}]
+  [%expect
+    {| Let_syntax.map EXPR ~f:(fun (PAT) -> let () = ()[@@merlin.hide ] in BODY) |}]
 ;;
 
 let%expect_test "Location of callsite" =
@@ -35,11 +36,15 @@ let%expect_test "Location of callsite" =
               pos_lnum = 0;
               pos_cnum = (-1);
               pos_bol = 0
-            } EXPR ~f:(fun (PAT) -> BODY)
+            } EXPR ~f:(fun (PAT) -> let () = ()[@@merlin.hide ] in BODY)
     |}]
 ;;
 
 let%expect_test "Location in scope" =
   test (Location_in_scope "over_there");
-  [%expect {| Let_syntax.map ~here:over_there EXPR ~f:(fun (PAT) -> BODY) |}]
+  [%expect
+    {|
+    Let_syntax.map ~here:over_there EXPR
+      ~f:(fun (PAT) -> let () = ()[@@merlin.hide ] in BODY)
+    |}]
 ;;

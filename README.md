@@ -90,7 +90,7 @@ let f = fun temp ->
   | None -> h
 ```
 
-### While statements
+### While expressions
 
 We also expand `while%bind expr1 do expr2 done` as
 

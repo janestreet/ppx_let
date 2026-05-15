@@ -2,7 +2,8 @@ open Ppxlib
 
 let ext t ~locality extension_kind =
   Extension.declare_with_path_arg
-    (Ppx_let_expander.ext_full_name t ~locality extension_kind)
+    (* Prefix with the name of the ppx to help avoid clashes with other ppxes. *)
+    ("let." ^ Ppx_let_expander.ext_full_name t ~locality extension_kind)
     Extension.Context.expression
     Ast_pattern.(single_expr_payload __)
     (fun ~loc:_ ~path:_ ~arg expr ->
