@@ -245,6 +245,12 @@ let expand_with_tmp_vars ~loc bindings expr ~f =
     pexp_let ~loc Nonrecursive s_lhs_tmp_var (f ~loc s_rhs_tmp_var expr)
 ;;
 
+let prevent_merging_with_fun ~loc body =
+  [%expr
+    let[@merlin.hide] () = () in
+    [%e body]]
+;;
+
 let maybe_destruct ~destruct ~loc ~modul ~return_value_in_exclave ~zero_alloc ~lhs ~body =
   let whole_value_var = gen_symbol ~prefix:"__pattern_syntax" () in
   let whole_value_pattern = ppat_var ~loc { txt = whole_value_var; loc } in
@@ -287,6 +293,7 @@ let expand_letn
   let bindings_args =
     bindings |> List.map ~f:(fun { pvb_expr; _ } -> Nolabel, pvb_expr)
   in
+  let body = prevent_merging_with_fun ~loc body in
   let func =
     List.fold_right
       bindings
@@ -360,6 +367,7 @@ let expand_let
     in
     List.reduce_exn rev_patts ~f:(fun acc p -> ppat_tuple ~loc:tuple_loc [ p; acc ])
   in
+  let body = prevent_merging_with_fun ~loc body in
   let fn =
     maybe_destruct
       ~destruct:Ext.destruct
@@ -416,43 +424,132 @@ let expand_match ext ~extension_kind ~loc ~modul ~locality expr cases =
   expand_match ext ~extension_kind ~match_kind:Match ~loc ~modul ~locality expr cases
 ;;
 
-let expand_while
+let general_loop
   (module Ext : Ext)
-  ~locality:
-    ({ allocate_function_on_stack; return_value_in_exclave } as locality : Locality.t)
+  ~locality:({ allocate_function_on_stack; return_value_in_exclave } : Locality.t)
   ~extension_kind
   ~loc
   ~modul
+  ~ploop_arg
+  ~eloop_arg
+  ~with_bookkeeping
+  ~if_then_else
+  ~first_cond
   ~cond
   ~body
   =
   let loop_name = gen_symbol ~prefix:"__let_syntax_loop" () in
   let ploop = pvar ~loc loop_name in
   let eloop = evar ~loc loop_name in
-  let loop_call = pexp_apply ~loc eloop [ Nolabel, eunit ~loc ] in
-  let loop_body =
-    let then_ =
-      bind_apply
-        ~fn_label:(function_label extension_kind)
-        ~op_name:Ext.name
-        ~loc
-        ~modul
-        ~with_location:Ext.with_location
-        ~arg:body
-        ~fn:eloop
-        ~prevent_tail_call:(Ext.prevent_tail_call || allocate_function_on_stack)
-        ()
-    in
-    let else_ = qualified_return ~loc ~modul (eunit ~loc) in
-    expand_if (module Ext) ~extension_kind ~modul ~locality ~loc cond then_ else_
+  let loop_call = pexp_apply ~loc eloop [ Nolabel, eloop_arg ] in
+  let if_ cond then_ =
+    if_then_else cond then_ (qualified_return ~loc ~modul (eunit ~loc))
   in
-  let loop_body = maybe_wrap_exclave ~loc ~return_value_in_exclave loop_body in
-  let loop_func = pexp_fun ~loc Nolabel None (punit ~loc) loop_body in
+  let loop_step =
+    pexp_fun
+      ~loc
+      Nolabel
+      None
+      (punit ~loc)
+      (if_ cond (with_bookkeeping loop_call)
+       |> maybe_wrap_exclave ~loc ~return_value_in_exclave)
+    |> maybe_wrap_local ~loc ~allocate_function_on_stack
+  in
+  let loop_body =
+    bind_apply
+      ~fn_label:(function_label extension_kind)
+      ~op_name:Ext.name
+      ~loc
+      ~modul
+      ~with_location:Ext.with_location
+      ~arg:body
+      ~fn:loop_step
+      ~prevent_tail_call:(Ext.prevent_tail_call || allocate_function_on_stack)
+      ()
+    |> maybe_wrap_exclave ~loc ~return_value_in_exclave
+  in
+  let loop_func =
+    pexp_fun ~loc Nolabel None ploop_arg loop_body
+    |> maybe_wrap_local ~loc ~allocate_function_on_stack
+  in
+  if_
+    first_cond
+    (pexp_let
+       ~loc
+       Recursive
+       [ do_not_enter_value (value_binding ~loc ~pat:ploop ~expr:loop_func) ]
+       (if allocate_function_on_stack then nontail ~loc loop_call else loop_call))
+;;
+
+let expand_while ext ~locality ~extension_kind ~loc ~modul ~cond ~body =
+  general_loop
+    ext
+    ~locality
+    ~extension_kind
+    ~loc
+    ~modul
+    ~ploop_arg:(punit ~loc)
+    ~eloop_arg:(eunit ~loc)
+    ~with_bookkeeping:Fn.id
+    ~if_then_else:(expand_if ext ~extension_kind ~modul ~locality ~loc)
+    ~first_cond:(Ppx_helpers.ghoster#expression cond)
+    ~cond
+    ~body
+;;
+
+let expand_for ext ~locality ~extension_kind ~loc ~modul ~pat ~from ~to_ ~direction ~body =
+  let upper_bound_name = gen_symbol ~prefix:"__let_syntax_for_loop_bound" () in
+  let pupper = pvar ~loc upper_bound_name in
+  let eupper = evar ~loc upper_bound_name in
+  let ploop_arg, eloop_arg =
+    let idx_name =
+      match pat.ppat_desc with
+      | Ppat_var { txt; loc = _ } -> txt
+      | Ppat_any -> gen_symbol ~prefix:"__let_syntax_idx" ()
+      | _ ->
+        failwith
+          "parsetree invariant violation: [for] binding must be identifier or wildcard"
+    in
+    pvar ~loc idx_name, evar ~loc idx_name
+  in
+  let first_cond, cond, bookkeeping =
+    match (direction : direction_flag) with
+    | Upto ->
+      ( [%expr [%e eloop_arg] <= [%e eupper]]
+      , [%expr [%e eloop_arg] < [%e eupper]]
+      , [%expr [%e eloop_arg] + 1] )
+    | Downto ->
+      ( [%expr [%e eloop_arg] >= [%e eupper]]
+      , [%expr [%e eloop_arg] > [%e eupper]]
+      , [%expr [%e eloop_arg] - 1] )
+  in
+  let run_loop =
+    general_loop
+      ext
+      ~locality
+      ~extension_kind
+      ~loc
+      ~modul
+      ~ploop_arg
+      ~eloop_arg
+      ~with_bookkeeping:(fun exp ->
+        pexp_let
+          ~loc
+          Nonrecursive
+          [ do_not_enter_value (value_binding ~loc ~pat:ploop_arg ~expr:bookkeeping) ]
+          exp)
+      ~if_then_else:(fun cond then_ else_ -> pexp_ifthenelse ~loc cond then_ (Some else_))
+      ~first_cond
+      ~cond
+      ~body
+  in
   pexp_let
     ~loc
-    Recursive
-    [ do_not_enter_value (value_binding ~loc ~pat:ploop ~expr:loop_func) ]
-    loop_call
+    Nonrecursive
+    [ do_not_enter_value (value_binding ~loc ~pat:ploop_arg ~expr:from)
+    ; do_not_enter_value (value_binding ~loc ~pat:pupper ~expr:to_)
+    ]
+    run_loop
 ;;
 
 let expand_function ~loc ~return_value_in_exclave ~zero_alloc cases =
@@ -476,6 +573,8 @@ module Map : Ext = struct
 
   let disallow_expression ~loc:_ _ = function
     | Pexp_while (_, _) -> Error "while%%map is not supported. use while%%bind instead."
+    | Pexp_for (_, _, _, _, _) ->
+      Error "for%%map is not supported. use for%%bind instead."
     | _ -> Ok ()
   ;;
 
@@ -517,6 +616,8 @@ module Bind : Ext = struct
   let disallow_expression ~loc:_ (extension_kind : Extension_kind.t) = function
     | Pexp_while (_, _) when extension_kind.collapse_binds ->
       Error "while%%bindn is not supported. use while%%bind instead."
+    | Pexp_for (_, _, _, _, _) when extension_kind.collapse_binds ->
+      Error "for%%bindn is not supported. use for%%bind instead."
     | _ -> Ok ()
   ;;
 
@@ -585,7 +686,7 @@ let maybe_enter_value pat expr =
 let raise_unhandled_expression ~loc name =
   Location.raise_errorf
     ~loc
-    "'%%%s' can only be used with 'let', 'match', 'while', 'function', and 'if'"
+    "'%%%s' can only be used with 'let', 'match', 'while', 'for', 'function', and 'if'"
     name
 ;;
 
@@ -663,6 +764,18 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
       expand_if ext ~extension_kind ~loc ~modul ~locality expr then_ else_
     | Pexp_while (cond, body) ->
       expand_while ext ~extension_kind ~loc ~modul ~locality ~cond ~body
+    | Pexp_for (pat, from, to_, direction, body) ->
+      expand_for
+        ext
+        ~extension_kind
+        ~loc
+        ~modul
+        ~locality
+        ~pat
+        ~from
+        ~to_
+        ~direction
+        ~body
     | Pexp_function (params, constraint_, body) ->
       (match
          Ppxlib_jane.Legacy_pexp_function.of_pexp_function ~params ~constraint_ ~body

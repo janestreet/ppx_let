@@ -36,8 +36,287 @@ let%expect_test "while%bindl trivial test" =
   check_some r [@nontail]
 ;;
 
+let%expect_test "while%bindl_val trivial test" =
+  let i = ref 0 in
+  let (r : unit option) =
+    assert_zero_alloc (fun () -> exclave_
+      while%bindl_val.Local_option
+        incr i;
+        Some (!i <= 5)
+      do
+        Some ()
+      done)
+  in
+  check_some r [@nontail]
+;;
+
+let%expect_test "while%bindl_fun trivial test" =
+  let i = ref 0 in
+  let (r : unit Or_null.t) =
+    assert_zero_alloc (fun () -> exclave_
+      while%bindl_fun.Or_null
+        incr i;
+        This (!i <= 5)
+      do
+        This ()
+      done)
+  in
+  r |> Or_null.to_option |> check_some
+;;
+
+let%expect_test "for%bindl trivial test" =
+  let (r : unit option) =
+    assert_zero_alloc (fun () -> exclave_
+      for%bindl.Local_option _ = 1 to 5 do
+        Some ()
+      done)
+  in
+  check_some r [@nontail]
+;;
+
+let%expect_test "for%bindl downto trivial test" =
+  let (r : unit option) =
+    assert_zero_alloc (fun () -> exclave_
+      for%bindl.Local_option _ = 5 downto 1 do
+        Some ()
+      done)
+  in
+  check_some r [@nontail]
+;;
+
+let%expect_test "for%bindl_val trivial test" =
+  let (r : unit option) =
+    assert_zero_alloc (fun () -> exclave_
+      for%bindl_val.Local_option _ = 1 to 5 do
+        Some ()
+      done)
+  in
+  check_some r [@nontail]
+;;
+
+let%expect_test "for%bindl_fun trivial test" =
+  let (r : unit Or_null.t) =
+    assert_zero_alloc (fun () -> exclave_
+      for%bindl_fun.Or_null _ = 1 to 5 do
+        This ()
+      done)
+  in
+  r |> Or_null.to_option |> check_some
+;;
+
 let local : Locality.t =
   { allocate_function_on_stack = true; return_value_in_exclave = true }
+;;
+
+let%expect_test "for%bindl expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:local
+    [%expr
+      for i = START to STOP do
+        BODY
+      done]
+  |> print_expr;
+  [%expect
+    {|
+    let i = START[@@ppxlib.do_not_enter_value ]
+    and __let_syntax_for_loop_bound__001_ = STOP[@@ppxlib.do_not_enter_value ] in
+    if i <= __let_syntax_for_loop_bound__001_
+    then
+      let rec __let_syntax_loop__002_ =
+        (fun i ->
+           exclave_ ((Let_syntax.bind BODY
+                        ~f:(fun () ->
+                              exclave_ if i < __let_syntax_for_loop_bound__001_
+                                       then
+                                         let i = i + 1[@@ppxlib.do_not_enter_value
+                                                        ] in
+                                         __let_syntax_loop__002_ i
+                                       else Let_syntax.return () : @ local))
+             [@nontail ]) : @ local)[@@ppxlib.do_not_enter_value ] in
+      ((__let_syntax_loop__002_ i)[@nontail ])
+    else Let_syntax.return ()
+    |}]
+;;
+
+let%expect_test "for%bindl_val expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:{ local with allocate_function_on_stack = false }
+    [%expr
+      for i = START to STOP do
+        BODY
+      done]
+  |> print_expr;
+  [%expect
+    {|
+    let i = START[@@ppxlib.do_not_enter_value ]
+    and __let_syntax_for_loop_bound__003_ = STOP[@@ppxlib.do_not_enter_value ] in
+    if i <= __let_syntax_for_loop_bound__003_
+    then
+      let rec __let_syntax_loop__004_ i =
+        exclave_ Let_syntax.bind BODY
+                   ~f:(fun () ->
+                         exclave_ if i < __let_syntax_for_loop_bound__003_
+                                  then
+                                    let i = i + 1[@@ppxlib.do_not_enter_value ] in
+                                    __let_syntax_loop__004_ i
+                                  else Let_syntax.return ())[@@ppxlib.do_not_enter_value
+                                                              ] in
+      __let_syntax_loop__004_ i
+    else Let_syntax.return ()
+    |}]
+;;
+
+let%expect_test "for%bindl_fun expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:{ local with return_value_in_exclave = false }
+    [%expr
+      for i = START to STOP do
+        BODY
+      done]
+  |> print_expr;
+  [%expect
+    {|
+    let i = START[@@ppxlib.do_not_enter_value ]
+    and __let_syntax_for_loop_bound__005_ = STOP[@@ppxlib.do_not_enter_value ] in
+    if i <= __let_syntax_for_loop_bound__005_
+    then
+      let rec __let_syntax_loop__006_ =
+        (fun i ->
+           ((Let_syntax.bind BODY
+               ~f:(fun () ->
+                     if i < __let_syntax_for_loop_bound__005_
+                     then
+                       let i = i + 1[@@ppxlib.do_not_enter_value ] in
+                       __let_syntax_loop__006_ i
+                     else Let_syntax.return () : @ local))
+           [@nontail ]) : @ local)[@@ppxlib.do_not_enter_value ] in
+      ((__let_syntax_loop__006_ i)[@nontail ])
+    else Let_syntax.return ()
+    |}]
+;;
+
+let%expect_test "while%bindl expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:local
+    [%expr
+      while COND do
+        BODY
+      done]
+  |> print_expr;
+  [%expect
+    {|
+    ((Let_syntax.bind COND
+        ~f:(fun __let_syntax__009_ ->
+              exclave_ match __let_syntax__009_ with
+                       | true ->
+                           let rec __let_syntax_loop__007_ =
+                             (fun () ->
+                                exclave_ ((Let_syntax.bind BODY
+                                             ~f:(fun () ->
+                                                   exclave_ ((Let_syntax.bind
+                                                                COND
+                                                                ~f:(fun
+                                                                      __let_syntax__008_
+                                                                      ->
+                                                                      exclave_
+                                                                        match __let_syntax__008_
+                                                                        with
+                                                                        |
+                                                                        true ->
+                                                                        __let_syntax_loop__007_
+                                                                        ()
+                                                                        |
+                                                                        false ->
+                                                                        Let_syntax.return
+                                                                        ()))
+                                                     [@nontail ]) : @ local))
+                                  [@nontail ]) : @ local)[@@ppxlib.do_not_enter_value
+                                                           ] in
+                           ((__let_syntax_loop__007_ ())[@nontail ])
+                       | false -> Let_syntax.return ()))
+    [@nontail ])
+    |}]
+;;
+
+let%expect_test "while%bindl_val expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:{ local with allocate_function_on_stack = false }
+    [%expr
+      while COND do
+        BODY
+      done]
+  |> print_expr;
+  [%expect
+    {|
+    Let_syntax.bind COND
+      ~f:(fun __let_syntax__012_ ->
+            exclave_ match __let_syntax__012_ with
+                     | true ->
+                         let rec __let_syntax_loop__010_ () =
+                           exclave_ Let_syntax.bind BODY
+                                      ~f:(fun () ->
+                                            exclave_ Let_syntax.bind COND
+                                                       ~f:(fun __let_syntax__011_
+                                                             ->
+                                                             exclave_ match __let_syntax__011_
+                                                                      with
+                                                                      | true ->
+                                                                        __let_syntax_loop__010_
+                                                                        ()
+                                                                      | false ->
+                                                                        Let_syntax.return
+                                                                        ()))
+                           [@@ppxlib.do_not_enter_value ] in
+                         __let_syntax_loop__010_ ()
+                     | false -> Let_syntax.return ())
+    |}]
+;;
+
+let%expect_test "while%bindl_fun expansion" =
+  Ppx_let_expander.expand
+    Ppx_let_expander.bind
+    Ppx_let_expander.Extension_kind.default
+    ~modul:None
+    ~locality:{ local with return_value_in_exclave = false }
+    [%expr
+      while COND do
+        BODY
+      done]
+  |> print_expr;
+  [%expect
+    {|
+    ((Let_syntax.bind COND
+        ~f:(function
+            | true ->
+                let rec __let_syntax_loop__013_ =
+                  (fun () ->
+                     ((Let_syntax.bind BODY
+                         ~f:(fun () ->
+                               ((Let_syntax.bind COND
+                                   ~f:(function
+                                       | true -> __let_syntax_loop__013_ ()
+                                       | false -> Let_syntax.return ()))
+                               [@nontail ]) : @ local))
+                     [@nontail ]) : @ local)[@@ppxlib.do_not_enter_value ] in
+                ((__let_syntax_loop__013_ ())[@nontail ])
+            | false -> Let_syntax.return ()))
+    [@nontail ])
+    |}]
 ;;
 
 let%expect_test "let%bindl expansion" =
@@ -53,10 +332,11 @@ let%expect_test "let%bindl expansion" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__001_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__002_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    ((Let_syntax.bind (Let_syntax.both __let_syntax__001_ __let_syntax__002_)
-        ~f:(local_ fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3))
+    let __let_syntax__014_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__015_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    ((Let_syntax.bind (Let_syntax.both __let_syntax__014_ __let_syntax__015_)
+        ~f:(fun (PATTERN1, PATTERN2) ->
+              exclave_ let () = ()[@@merlin.hide ] in return EXPRESSION3 : @ local))
       [@nontail ])
     |}]
 ;;
@@ -74,10 +354,11 @@ let%expect_test "let%bindl_val expansion" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__004_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__005_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    Let_syntax.bind (Let_syntax.both __let_syntax__004_ __let_syntax__005_)
-      ~f:(fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3)
+    let __let_syntax__017_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__018_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    Let_syntax.bind (Let_syntax.both __let_syntax__017_ __let_syntax__018_)
+      ~f:(fun (PATTERN1, PATTERN2) ->
+            exclave_ let () = ()[@@merlin.hide ] in return EXPRESSION3)
     |}]
 ;;
 
@@ -94,10 +375,11 @@ let%expect_test "let%bindl_fun expansion" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__007_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__008_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    ((Let_syntax.bind (Let_syntax.both __let_syntax__007_ __let_syntax__008_)
-        ~f:(local_ fun (PATTERN1, PATTERN2) -> return EXPRESSION3))
+    let __let_syntax__020_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__021_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    ((Let_syntax.bind (Let_syntax.both __let_syntax__020_ __let_syntax__021_)
+        ~f:(fun (PATTERN1, PATTERN2) ->
+              let () = ()[@@merlin.hide ] in return EXPRESSION3 : @ local))
       [@nontail ])
     |}]
 ;;
@@ -115,10 +397,11 @@ let%expect_test "let%mapl expansion" =
   |> print_expr;
   [%expect
     {|
-    let __let_syntax__010_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
-    and __let_syntax__011_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
-    ((Let_syntax.map (Let_syntax.both __let_syntax__010_ __let_syntax__011_)
-        ~f:(local_ fun (PATTERN1, PATTERN2) -> exclave_ return EXPRESSION3))
+    let __let_syntax__023_ = return EXPRESSION1[@@ppxlib.do_not_enter_value ]
+    and __let_syntax__024_ = return EXPRESSION2[@@ppxlib.do_not_enter_value ] in
+    ((Let_syntax.map (Let_syntax.both __let_syntax__023_ __let_syntax__024_)
+        ~f:(fun (PATTERN1, PATTERN2) ->
+              exclave_ let () = ()[@@merlin.hide ] in return EXPRESSION3 : @ local))
       [@nontail ])
     |}]
 ;;
