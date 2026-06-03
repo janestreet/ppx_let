@@ -54,7 +54,7 @@ These applicatives will export functions like `map4` shown below:
 val map4: 'a t -> 'b t -> 'c t -> 'd t -> f:('a -> 'b -> 'c -> 'd -> 'r) -> 'r t
 ```
 
-In order to use these optmized functions, ppx\_let provides the `let%mapn`
+In order to use these optimized functions, ppx\_let provides the `let%mapn`
 syntax, which picks the right `map{n}` function to call based on the amount of
 applicatives bound by the syntax.
 
