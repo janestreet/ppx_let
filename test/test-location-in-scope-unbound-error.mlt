@@ -30,6 +30,8 @@ let () =
             let with_location =
               Ppx_let_expander.With_location.Location_in_scope "over_there"
             ;;
+
+            let implicit_else = None
           end)
       ]
 ;;
@@ -47,6 +49,6 @@ let _ : _ =
    points to a relevant location. *)
 [%%expect
   {|
-Line 42, characters 2-25:
+Line 44, characters 2-25:
 Error: Unbound value over_there
 |}]

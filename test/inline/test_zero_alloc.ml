@@ -10,26 +10,43 @@ module Identity_let_syntax = struct
   module Let_syntax = struct
     let return = return
 
-    let[@zero_alloc] bind x ~(f_zero_alloc @ local) = exclave_
-      (f_zero_alloc [@zero_alloc assume]) x [@nontail]
+    let[@zero_alloc] bind x ~(f_zero_alloc @ local) =
+      (f_zero_alloc [@zero_alloc assume]) x
     ;;
 
-    let[@zero_alloc] map x ~(f_zero_alloc @ local) = exclave_
-      (f_zero_alloc [@zero_alloc assume]) x [@nontail]
-    ;;
-
+    let[@zero_alloc] map x ~(f_zero_alloc @ local) = (f_zero_alloc [@zero_alloc assume]) x
     let both x y = x, y
 
-    let[@zero_alloc] map2 x y ~(f_zero_alloc @ local) = exclave_
-      (f_zero_alloc [@zero_alloc assume]) x y [@nontail]
+    let[@zero_alloc] map2 x y ~(f_zero_alloc @ local) =
+      (f_zero_alloc [@zero_alloc assume]) x y
     ;;
 
-    let[@zero_alloc] bind2 x y ~(f_zero_alloc @ local) = exclave_
-      (f_zero_alloc [@zero_alloc assume]) x y [@nontail]
+    let[@zero_alloc] bind2 x y ~(f_zero_alloc @ local) =
+      (f_zero_alloc [@zero_alloc assume]) x y
     ;;
+  end
 
-    module Open_on_rhs = struct
-      let[@zero_alloc] return x = return x
+  module Local = struct
+    module Let_syntax = struct
+      let return = return
+
+      let[@zero_alloc] bind x ~(f_zero_alloc @ local) = exclave_
+        (f_zero_alloc [@zero_alloc assume]) x
+      ;;
+
+      let[@zero_alloc] map x ~(f_zero_alloc @ local) = exclave_
+        (f_zero_alloc [@zero_alloc assume]) x
+      ;;
+
+      let both x y = x, y
+
+      let[@zero_alloc] map2 x y ~(f_zero_alloc @ local) = exclave_
+        (f_zero_alloc [@zero_alloc assume]) x y
+      ;;
+
+      let[@zero_alloc] bind2 x y ~(f_zero_alloc @ local) = exclave_
+        (f_zero_alloc [@zero_alloc assume]) x y
+      ;;
     end
   end
 end
@@ -65,6 +82,7 @@ open Identity_let_syntax
 
   (* Test let%bindzl with multiple bindings - this should not allocate *)
   let test_bindzl x y =
+    let open Local in
     let%bindzl a = x
     and b = y in
     a + b
@@ -72,6 +90,7 @@ open Identity_let_syntax
 
   (* Test let%mapzl with multiple bindings - this should not allocate *)
   let test_mapzl x y =
+    let open Local in
     let%mapzl a = x
     and b = y in
     a + b
@@ -79,6 +98,7 @@ open Identity_let_syntax
 
   (* Test let%bindnzl with multiple bindings - this should not allocate *)
   let[@zero_alloc] test_bindnzl x y =
+    let open Local in
     let%bindnzl a = x
     and b = y in
     a + b
@@ -86,6 +106,7 @@ open Identity_let_syntax
 
   (* Test let%mapzl with multiple bindings - this should not allocate *)
   let[@zero_alloc] test_mapnzl x y =
+    let open Local in
     let%mapnzl a = x
     and b = y in
     a + b
@@ -164,50 +185,62 @@ let test_mapnz x y =
 ;;
 
 let test_bindzl x y =
+  let open Local in
   let __let_syntax__011_ = x [@@ppxlib.do_not_enter_value]
   and __let_syntax__012_ = y [@@ppxlib.do_not_enter_value] in
   Let_syntax.bind
     (Let_syntax.both __let_syntax__011_ __let_syntax__012_)
-    ~f_zero_alloc:(local_ fun [@zero_alloc] (a, b) -> exclave_
-      let () = () [@@merlin.hide] in
-      a + b)
-  [@nontail]
+    ~f_zero_alloc:
+      (fun [@zero_alloc] (a, b) -> exclave_
+         let () = () [@@merlin.hide] in
+         a + b
+       :
+       @ local) [@nontail]
 ;;
 
 let test_mapzl x y =
+  let open Local in
   let __let_syntax__014_ = x [@@ppxlib.do_not_enter_value]
   and __let_syntax__015_ = y [@@ppxlib.do_not_enter_value] in
   Let_syntax.map
     (Let_syntax.both __let_syntax__014_ __let_syntax__015_)
-    ~f_zero_alloc:(local_ fun [@zero_alloc] (a, b) -> exclave_
-      let () = () [@@merlin.hide] in
-      a + b)
-  [@nontail]
+    ~f_zero_alloc:
+      (fun [@zero_alloc] (a, b) -> exclave_
+         let () = () [@@merlin.hide] in
+         a + b
+       :
+       @ local) [@nontail]
 ;;
 
 let test_bindnzl x y =
+  let open Local in
   let __let_syntax__017_ = x [@@ppxlib.do_not_enter_value]
   and __let_syntax__018_ = y [@@ppxlib.do_not_enter_value] in
   Let_syntax.bind2
     __let_syntax__017_
     __let_syntax__018_
-    ~f_zero_alloc:(local_ fun [@zero_alloc] a b -> exclave_
-      let () = () [@@merlin.hide] in
-      a + b)
-  [@nontail]
+    ~f_zero_alloc:
+      (fun [@zero_alloc] a b -> exclave_
+         let () = () [@@merlin.hide] in
+         a + b
+       :
+       @ local) [@nontail]
 [@@zero_alloc]
 ;;
 
 let test_mapnzl x y =
+  let open Local in
   let __let_syntax__021_ = x [@@ppxlib.do_not_enter_value]
   and __let_syntax__022_ = y [@@ppxlib.do_not_enter_value] in
   Let_syntax.map2
     __let_syntax__021_
     __let_syntax__022_
-    ~f_zero_alloc:(local_ fun [@zero_alloc] a b -> exclave_
-      let () = () [@@merlin.hide] in
-      a + b)
-  [@nontail]
+    ~f_zero_alloc:
+      (fun [@zero_alloc] a b -> exclave_
+         let () = () [@@merlin.hide] in
+         a + b
+       :
+       @ local) [@nontail]
 [@@zero_alloc]
 ;;
 

@@ -4,26 +4,26 @@ type 'a t = 'a option
 
 module Let_syntax : sig
   module Let_syntax : sig
-    val return : local_ 'a -> local_ 'a t
-    val map : local_ 'a t -> f:local_ (local_ 'a -> local_ 'b) -> local_ 'b t
-    val bind : local_ 'a t -> f:local_ (local_ 'a -> local_ 'b t) -> local_ 'b t
-    val both : local_ 'a t -> local_ 'b t -> local_ ('a * 'b) t
+    val return : 'a @ local -> 'a t @ local
+    val map : 'a t @ local -> f:('a @ local -> 'b @ local) @ local -> 'b t @ local
+    val bind : 'a t @ local -> f:('a @ local -> 'b t @ local) @ local -> 'b t @ local
+    val both : 'a t @ local -> 'b t @ local -> ('a * 'b) t @ local
 
     val map4
-      :  local_ 'a t
-      -> local_ 'b t
-      -> local_ 'c t
-      -> local_ 'd t
-      -> f:local_ (local_ 'a -> local_ 'b -> local_ 'c -> local_ 'd -> local_ 'e)
-      -> local_ 'e t
+      :  'a t @ local
+      -> 'b t @ local
+      -> 'c t @ local
+      -> 'd t @ local
+      -> f:('a @ local -> 'b @ local -> 'c @ local -> 'd @ local -> 'e @ local) @ local
+      -> 'e t @ local
 
     val bind4
-      :  local_ 'a t
-      -> local_ 'b t
-      -> local_ 'c t
-      -> local_ 'd t
-      -> f:local_ (local_ 'a -> local_ 'b -> local_ 'c -> local_ 'd -> local_ 'e t)
-      -> local_ 'e t
+      :  'a t @ local
+      -> 'b t @ local
+      -> 'c t @ local
+      -> 'd t @ local
+      -> f:('a @ local -> 'b @ local -> 'c @ local -> 'd @ local -> 'e t @ local) @ local
+      -> 'e t @ local
 
     module Open_on_rhs : sig end
   end
