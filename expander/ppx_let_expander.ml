@@ -1,4 +1,4 @@
-open Base
+open Ppx_helpers.Base_lite
 open Ppxlib
 open Ast_builder.Default
 
@@ -72,6 +72,7 @@ module type Ext = sig
   val name : string
   val with_location : With_location.t
   val prevent_tail_call : bool
+  val implicit_else : (loc:location -> expression) option
 
   (* Called before each expansion to ensure that the expression being expanded is
      supported. *)
@@ -555,7 +556,7 @@ let expand_for ext ~locality ~extension_kind ~loc ~modul ~pat ~from ~to_ ~direct
 let expand_function ~loc ~return_value_in_exclave ~zero_alloc cases =
   let func =
     match return_value_in_exclave with
-    | false -> pexp_function ~loc cases
+    | false -> pexp_function_cases ~loc cases
     | true ->
       let var = gen_symbol ~prefix:"__let_syntax" () in
       pexp_match ~loc (evar ~loc var) cases
@@ -570,6 +571,7 @@ module Map : Ext = struct
   let with_location = With_location.No_location
   let wrap_expansion = wrap_expansion_identity
   let prevent_tail_call = false
+  let implicit_else = Some (fun ~loc -> eunit ~loc)
 
   let disallow_expression ~loc:_ _ = function
     | Pexp_while (_, _) -> Error "while%%map is not supported. use while%%bind instead."
@@ -612,6 +614,7 @@ module Bind : Ext = struct
   let with_location = With_location.No_location
   let wrap_expansion = wrap_expansion_identity
   let prevent_tail_call = false
+  let implicit_else = None
 
   let disallow_expression ~loc:_ (extension_kind : Extension_kind.t) = function
     | Pexp_while (_, _) when extension_kind.collapse_binds ->
@@ -703,32 +706,56 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
       let bindings =
         List.map bindings ~f:(fun vb ->
           let pvb_pat, pvb_expr =
-            (* Temporary hack tentatively detecting that the parser has expanded `let x :
-               t = e` into `let x : t = (e : t)`.
-
-               For reference, here is the relevant part of the parser:
-               https://github.com/ocaml/ocaml/blob/4.07/parsing/parser.mly#L1628 *)
-            match
-              ( Ppxlib_jane.Shim.Pattern_desc.of_parsetree vb.pvb_pat.ppat_desc
-              , Ppxlib_jane.Shim.Expression_desc.of_parsetree
-                  ~loc:vb.pvb_expr.pexp_loc
-                  vb.pvb_expr.pexp_desc )
-            with
-            | Ppat_constraint (p, Some t1, _), Pexp_constraint (_, Some t2, _)
-              when let t1 =
-                     match t1 with
-                     | { ptyp_desc = Ptyp_poly ([], t1); _ } -> t1
-                     | _ -> t1
-                   in
-                   phys_equal t1 t2 || Poly.equal t1 t2 ->
-              ( p
-              , { vb.pvb_expr with
-                  pexp_loc = { vb.pvb_expr.pexp_loc with loc_ghost = true }
-                } )
-            | _ -> vb.pvb_pat, vb.pvb_expr
+            (* For [let x : ty = e] with a variable pattern, [ty] describes the right-hand
+               side and goes on the expression, so the type information flows into the
+               operator's argument (e.g. for GADT refinement); polytypes and constraints
+               on other patterns go on the pattern. *)
+            match vb.pvb_constraint with
+            | Some constraint_ ->
+              (* The location of a node must enclose its children, so use ghost locations
+                 spanning from the pattern (resp. type) to the type (resp. expression). *)
+              let merge_loc (left : Location.t) (right : Location.t) =
+                { left with loc_end = right.loc_end; loc_ghost = true }
+              in
+              let constrain_pattern (typ : core_type) =
+                ( ppat_constraint
+                    ~loc:(merge_loc vb.pvb_pat.ppat_loc typ.ptyp_loc)
+                    vb.pvb_pat
+                    typ
+                , vb.pvb_expr )
+              in
+              let constrain_expression (typ : core_type) =
+                pexp_constraint
+                  ~loc:(merge_loc typ.ptyp_loc vb.pvb_expr.pexp_loc)
+                  vb.pvb_expr
+                  typ
+              in
+              (match (constraint_ : value_constraint) with
+               | Pvc_constraint
+                   { locally_abstract_univars = []
+                   ; typ = { ptyp_desc = Ptyp_poly _; _ } as typ
+                   } -> constrain_pattern typ
+               | Pvc_constraint { locally_abstract_univars = []; typ } ->
+                 (match vb.pvb_pat with
+                  | { ppat_desc = Ppat_var _; ppat_attributes = []; _ } ->
+                    vb.pvb_pat, constrain_expression typ
+                  | _ -> constrain_pattern typ)
+               | Pvc_coercion { ground; coercion } ->
+                 ( vb.pvb_pat
+                 , pexp_coerce
+                     ~loc:{ vb.pvb_loc with loc_ghost = true }
+                     vb.pvb_expr
+                     ground
+                     coercion )
+               | Pvc_constraint { locally_abstract_univars = _ :: _; typ = _ } ->
+                 Location.raise_errorf
+                   ~loc:vb.pvb_loc
+                   "locally abstract types are not supported in this binding")
+            | None -> vb.pvb_pat, vb.pvb_expr
           in
           { vb with
             pvb_pat
+          ; pvb_constraint = None (* re-expressed on the pattern/expression above *)
           ; pvb_expr =
               maybe_open
                 ~extension_kind
@@ -755,9 +782,10 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
       expand_match ext ~extension_kind ~loc ~modul ~locality expr cases
     | Pexp_ifthenelse (expr, then_, else_) ->
       let else_ =
-        match else_ with
-        | Some else_ -> else_
-        | None ->
+        match else_, Ext.implicit_else with
+        | Some else_, _ -> else_
+        | None, Some implicit_else -> implicit_else ~loc
+        | None, None ->
           let ext_full_name = ext_full_name ext ~locality extension_kind in
           Location.raise_errorf ~loc "'if%%%s' must include an else branch" ext_full_name
       in
@@ -776,20 +804,14 @@ let expand ((module Ext : Ext) as ext) extension_kind ~modul ~locality expr =
         ~to_
         ~direction
         ~body
-    | Pexp_function (params, constraint_, body) ->
-      (match
-         Ppxlib_jane.Legacy_pexp_function.of_pexp_function ~params ~constraint_ ~body
-       with
-       | Legacy_pexp_function cases ->
-         let temp_var = gen_symbol ~prefix:"__let_syntax" () in
-         let temp_pattern = ppat_var ~loc { txt = temp_var; loc } in
-         let temp_expr = pexp_ident ~loc { txt = Lident temp_var; loc } in
-         let match_expr =
-           expand_match ext ~extension_kind ~loc ~modul ~locality temp_expr cases
-         in
-         pexp_fun ~loc Nolabel None temp_pattern match_expr
-       | Legacy_pexp_fun _ | Legacy_pexp_newtype _ ->
-         raise_unhandled_expression ~loc (ext_full_name ext ~locality extension_kind))
+    | Pexp_function ([], _, Pfunction_cases (cases, _, _)) ->
+      let temp_var = gen_symbol ~prefix:"__let_syntax" () in
+      let temp_pattern = ppat_var ~loc { txt = temp_var; loc } in
+      let temp_expr = pexp_ident ~loc { txt = Lident temp_var; loc } in
+      let match_expr =
+        expand_match ext ~extension_kind ~loc ~modul ~locality temp_expr cases
+      in
+      pexp_fun ~loc Nolabel None temp_pattern match_expr
     | _ -> raise_unhandled_expression ~loc (ext_full_name ext ~locality extension_kind)
   in
   { expansion with pexp_attributes = expr.pexp_attributes @ expansion.pexp_attributes }

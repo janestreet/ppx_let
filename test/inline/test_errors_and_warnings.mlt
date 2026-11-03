@@ -19,3 +19,11 @@ let no_let_mutable =
 Line _, characters _-_:
 Error: 'let%bind' may not be mutable
 |}]
+
+let no_if_bind_else = if%bind Some true then Some ()
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: 'if%bind' must include an else branch
+|}]

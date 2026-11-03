@@ -1,5 +1,4 @@
-ppx_let
-=======
+# ppx_let
 
 A ppx rewriter for monadic and applicative let bindings, match expressions, and
 if expressions.
@@ -54,7 +53,7 @@ These applicatives will export functions like `map4` shown below:
 val map4: 'a t -> 'b t -> 'c t -> 'd t -> f:('a -> 'b -> 'c -> 'd -> 'r) -> 'r t
 ```
 
-In order to use these optmized functions, ppx\_let provides the `let%mapn`
+In order to use these optimized functions, ppx\_let provides the `let%mapn`
 syntax, which picks the right `map{n}` function to call based on the amount of
 applicatives bound by the syntax.
 
@@ -69,7 +68,8 @@ with cases`.
 
 As a further convenience, ppx\_let accepts `%bind` and `%map` on the `if`
 keyword. The expression `if%bind expr1 then expr2 else expr3` is morally
-equivalent to `let%bind p = expr1 in if p then expr2 else expr3`.
+equivalent to `let%bind p = expr1 in if p then expr2 else expr3`. For `if%map`,
+the `else ()` branch may be omitted, as in ordinary OCaml `if` expressions.
 
 ### Function expressions
 
@@ -128,6 +128,8 @@ if%bind M then E1 else E2
 
 if%map  M then E1 else E2
 
+if%map  M then E1
+
 while%bind M do E done
 ```
 
@@ -145,6 +147,8 @@ map  M ~f:(function P1 -> E1 | P2 -> E2 | ...)
 bind M ~f:(function true -> E1 | false -> E2)
 
 map  M ~f:(function true -> E1 | false -> E2)
+
+map  M ~f:(function true -> E1 | false -> ())
 
 let rec loop () = bind M ~f:(function true -> bind E ~f:loop | false -> return ()) in loop ()
 ```

@@ -84,10 +84,9 @@ module type Ext = sig
   val name : string
   val with_location : With_location.t
 
-  (*=When true, prevent_tail_call will keep the resulting
-     function application from being in tail position by introducing a local
-     variable.  This is useful when working in with locals, and was added in order to
-     allow ppx_bonsai to transform
+  (* When true, prevent_tail_call will keep the resulting function application from being
+     in tail position by introducing a local variable. This is useful when working in with
+     locals, and was added in order to allow ppx_bonsai to transform
 
      {[
        let%sub a = foo in
@@ -96,12 +95,20 @@ module type Ext = sig
 
      into
 
-     {[ ((sub foo ~f:(fun a -> a))[@nontail]) ]}
+     {[
+       sub foo ~f:(fun a -> a) [@nontail]
+     ]}
 
      instead of
 
-     {[ sub foo ~f:(fun a -> a) ]} *)
+     {[
+       sub foo ~f:(fun a -> a)
+     ]} *)
   val prevent_tail_call : bool
+
+  (* The expression to use as an implicit else branch for if%[name] expressions that omit
+     an else branch. If [None], if%[name] must include an else branch. *)
+  val implicit_else : (loc:location -> expression) option
 
   (* Called before each expansion to ensure that the expression being expanded is
      supported. *)
